@@ -39,13 +39,13 @@ impl<'info_wr> WagerResult<'info_wr> {
 
     pub fn distribute_tokens_to_bettors_and_assign_markets(
         &mut self,
-        _address: Pubkey,
+        address: Pubkey,
         _authensus_token: Pubkey,
         _facet: Facet,
     ) -> Result<()> {
 
         require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
-        require!(self.escrow.bettors.as_ref().unwrap().contains(&self.bettor.pk), ResultsError::NotABettor);
+        require!(self.escrow.bettors.as_ref().unwrap().contains(&address), ResultsError::NotABettor);
         // require!(self.escrow.total_underdog == 0, ResultsError::UnderdogBetsNotResolved);
 
         // Change the market state if necessary
@@ -62,12 +62,12 @@ impl<'info_wr> WagerResult<'info_wr> {
         }
 
         if self.poll.total_for == self.poll.total_against {
-            return voting_tie();
+            return self.voting_tie();
         }
 
         let direction = self.poll.total_for > self.poll.total_against;
 
-        let (bet_returned, winnings_pre) = compute_returns(
+        let (bet_returned, winnings_pre) = self.compute_returns(
             direction,
             self.escrow.tot_for,
             self.escrow.tot_against,
@@ -80,16 +80,21 @@ impl<'info_wr> WagerResult<'info_wr> {
         let winnings: u64 = (PERCENTAGE_WINNINGS_KEPT*winnings_pre)/100;
 
         // Reimburse bets
-        reimburse_sol_wager(self.signer.to_account_info(), bet_returned);
+        self.reimburse_sol_wager(self.signer.to_account_info(), bet_returned);
 
         // Mint and allocate voting tokens
-        assign_markets_to_new_voter()
+        self.assign_markets_to_new_voter(winnings)
 
     }
 
-    fn assign_markets_to_new_voter(&mut self) -> Result<()> {
+    fn assign_markets_to_new_voter(
+        &mut self,
+        winnings: u64,
+    ) -> Result<()> {
 
         require!(self.market.state == MarketState::Inactive, ResultsError::VotingNotFinished);
+
+        // NEEDS TO BE COMPLETED
 
         Ok(())
 
@@ -100,11 +105,12 @@ impl<'info_wr> WagerResult<'info_wr> {
     ) -> Result<()> {
 
         let total_bets = self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog;
-        reimburse_sol_wager(self.signer.to_account_info(), total_bets)
+        self.reimburse_sol_wager(self.signer.to_account_info(), total_bets)
 
     }
 
     fn compute_returns(
+        &mut self,
         direction: bool,
         escrow_tot_for: u64,
         escrow_tot_against: u64,
@@ -144,7 +150,11 @@ impl<'info_wr> WagerResult<'info_wr> {
 
     }
 
-    fn reimburse_sol_wager(&self, to: AccountInfo<'info_wr>, amount: u64) -> Result<()> {
+    fn reimburse_sol_wager(
+        &self,
+        to: AccountInfo<'info_wr>,
+        amount: u64
+    ) -> Result<()> {
 
         let accounts = Transfer {
             from: self.escrow.to_account_info(),

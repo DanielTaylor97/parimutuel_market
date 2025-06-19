@@ -115,12 +115,12 @@ impl<'info_v> Vote<'info_v> {
 
             self.poll.set_inner(
                 Poll {
-                    bump: self.poll.bump,                   // u8
-                    market: self.poll.market,               // Pubkey
-                    facet: self.poll.facet.clone(),         // Facet
-                    voters: Some(voters.clone()),           // Option<Vec<Pubkey>>
-                    total_for: self.poll.total_for,         // u64
-                    total_against: self.poll.total_against, // u64
+                    bump: self.poll.bump,                                   // u8
+                    market: self.poll.market,                               // Pubkey
+                    facet: self.poll.facet.clone(),                         // Facet
+                    voters: Some(voters.clone()),                           // Option<Vec<Pubkey>>
+                    total_for: self.poll.total_for + total_for,             // u64
+                    total_against: self.poll.total_against + total_against, // u64
                 }
             );
         }

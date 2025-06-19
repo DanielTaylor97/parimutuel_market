@@ -52,6 +52,9 @@ pub enum ResultsError {
     #[msg("Given address is not a bettor in this market-facet combination")]
     NotABettor,
 
+    #[msg("This person is either not a voter or has already tried to receive their voting reward")]
+    NotAVoter,
+
     // #[msg("The underdog bets have not yet been resolved")]
     // UnderdogBetsNotResolved,
 
