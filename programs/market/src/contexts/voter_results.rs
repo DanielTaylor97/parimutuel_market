@@ -41,7 +41,7 @@ impl<'info_vr> VoterResult<'info_vr> {
         address: Pubkey,
     ) -> Result<()> {
 
-        require!(self.market.state == MarketState::Inactive, ResultsError::VotingNotFinished);
+        require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
         require!(self.poll.voters.clone().unwrap().contains(&address), ResultsError::NotAVoter);
 
         if self.poll.total_for == self.poll.total_against {

@@ -6,6 +6,7 @@ skip-lint = false
 
 [programs.localnet]
 market = "H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY"
+voting_tokens = "8MrQHajcffRco93T4kR5FiLnrCYA7nj1yYXoauHRdg5d"
 
 [registry]
 url = "https://api.apr.dev"

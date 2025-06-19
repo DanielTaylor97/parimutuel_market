@@ -49,13 +49,13 @@ impl<'info_wr> WagerResult<'info_wr> {
         // require!(self.escrow.total_underdog == 0, ResultsError::UnderdogBetsNotResolved);
 
         // Change the market state if necessary
-        if self.market.state != MarketState::Inactive {
+        if self.market.state != MarketState::Consolidating {
             self.market.set_inner(
                 Market {
                     bump: self.market.bump,             // u8
                     token: self.market.token,           // Pubkey
                     facets: self.market.facets.clone(), // Vec<Facet>
-                    state: MarketState::Inactive,       // MarketState
+                    state: MarketState::Consolidating,       // MarketState
                     round: self.market.round,           // u16
                 }
             );
@@ -92,7 +92,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         winnings: u64,
     ) -> Result<()> {
 
-        require!(self.market.state == MarketState::Inactive, ResultsError::VotingNotFinished);
+        require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
 
         // NEEDS TO BE COMPLETED
 

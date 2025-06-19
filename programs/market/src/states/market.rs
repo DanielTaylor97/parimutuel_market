@@ -20,6 +20,7 @@ pub enum MarketState {
     Inactive,
     Betting,
     Voting,
+    Consolidating,
 }
 
 #[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq)]
