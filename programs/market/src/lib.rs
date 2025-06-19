@@ -165,13 +165,7 @@ pub mod market {
         facet: Facet,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_tokens_to_bettors(
-            address,
-            authensus_token,
-            facet,
-        );
-
-        ctx.accounts.assign_markets_to_new_voters(
+        ctx.accounts.distribute_tokens_to_bettors_and_assign_markets(
             address,
             authensus_token,
             facet,

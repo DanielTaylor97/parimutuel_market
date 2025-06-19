@@ -37,7 +37,7 @@ pub struct WagerResult<'info_wr> {
 
 impl<'info_wr> WagerResult<'info_wr> {
 
-    pub fn distribute_tokens_to_bettors(
+    pub fn distribute_tokens_to_bettors_and_assign_markets(
         &mut self,
         _address: Pubkey,
         _authensus_token: Pubkey,
@@ -83,56 +83,24 @@ impl<'info_wr> WagerResult<'info_wr> {
         reimburse_sol_wager(self.signer.to_account_info(), bet_returned);
 
         // Mint and allocate voting tokens
-
-        Ok(())
-
-        // let for_multiplier: u64 = match direction {
-        //     true => 1_u64,
-        //     false => 0_u64,
-        // };
-        // let against_multiplier: u64 = 1_u64 - for_multiplier;
-
-        // // Escrow totals for and against with appropriate shares from underdog bets
-        // let final_tot_for: u64 = (DIV_BUFFER*self.escrow.tot_for + (DIV_BUFFER*self.escrow.tot_underdog*self.escrow.tot_against)/(self.escrow.tot_for + self.escrow.tot_against))/DIV_BUFFER;
-        // let final_tot_against: u64 = (DIV_BUFFER*self.escrow.tot_against + (DIV_BUFFER*self.escrow.tot_underdog*self.escrow.tot_for)/(self.escrow.tot_for + self.escrow.tot_against))/DIV_BUFFER;
-
-        // // Final bets for and against from user underdog bets
-        // let underdog_for: u64 = ((DIV_BUFFER*self.bettor.tot_underdog*final_tot_against)/(final_tot_against + final_tot_against))/DIV_BUFFER;
-        // let underdog_against: u64 = ((DIV_BUFFER*self.bettor.tot_underdog*final_tot_for)/(final_tot_against + final_tot_against))/DIV_BUFFER;
-
-        // // Winnings for and against from user normal bets
-        // let winnings_for: u64 = ((DIV_BUFFER*final_tot_against*self.bettor.tot_for)/final_tot_for)/DIV_BUFFER;
-        // let winnings_against: u64 = ((DIV_BUFFER*final_tot_for*self.bettor.tot_against)/final_tot_against)/DIV_BUFFER;
-
-        // // Winnings for and against from user underdog bets
-        // let underdog_winnings_for: u64 = ((DIV_BUFFER*final_tot_against*underdog_for)/final_tot_for)/DIV_BUFFER;
-        // let underdog_winnings_against: u64 = ((DIV_BUFFER*final_tot_for*underdog_against)/final_tot_against)/DIV_BUFFER;
-
-        // let bet_returned: u64 = for_multiplier*(self.bettor.tot_for + underdog_for)
-        //                         + against_multiplier*(self.bettor.tot_against + underdog_against);
-        // let winnings_pre: u64 = for_multiplier*(winnings_for + underdog_winnings_for)
-        //                         + against_multiplier*(winnings_against + underdog_winnings_against);
+        assign_markets_to_new_voter()
 
     }
 
-    pub fn assign_markets_to_new_voters(&mut self) -> Result<()> {
+    fn assign_markets_to_new_voter(&mut self) -> Result<()> {
 
         require!(self.market.state == MarketState::Inactive, ResultsError::VotingNotFinished);
-        require!(self.escrow.bettors.as_ref().unwrap().contains(&self.bettor.pk), ResultsError::NotABettor);
-        // require!(self.escrow.total_underdog == 0, ResultsError::UnderdogBetsNotResolved);
 
         Ok(())
 
     }
 
     fn voting_tie(
-        &mut self,
-        _address: Pubkey,
-        _authensus_token: Pubkey,
-        _facet: Facet,
+        &mut self
     ) -> Result<()> {
 
-        Ok(())
+        let total_bets = self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog;
+        reimburse_sol_wager(self.signer.to_account_info(), total_bets)
 
     }
 
