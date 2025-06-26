@@ -1,1 +1,0 @@
-<mint_tokens::MintTokens<'info_m> as anchor_lang::Accounts<'info_m, MintTokensBumps>>::try_accounts::__Args

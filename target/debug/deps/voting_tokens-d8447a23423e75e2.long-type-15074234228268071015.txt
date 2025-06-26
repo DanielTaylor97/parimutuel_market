@@ -1,1 +1,0 @@
-<initialise::Initialise<'info_i> as anchor_lang::Accounts<'info_i, InitialiseBumps>>::try_accounts::__Args
