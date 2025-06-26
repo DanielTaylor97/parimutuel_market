@@ -5,20 +5,20 @@ use anchor_lang::{
 
 use crate::constants::VOTE_THRESHOLD;
 use crate::error::VotingError;
-use crate::states::{Escrow, Facet, Market, MarketState, Poll, Voter};
+use crate::states::{Escrow, Market, MarketParams, MarketState, Poll, Voter};
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet, address: Pubkey)]
+#[instruction(params: MarketParams)]
 pub struct Vote<'info_v> {
     #[account(mut)]
     pub signer: Signer<'info_v>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_v, Market>,
     #[account(
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_v, Escrow>,
@@ -26,7 +26,7 @@ pub struct Vote<'info_v> {
         init_if_needed,
         space = Poll::INIT_SPACE,
         payer = signer,
-        seeds = [b"poll", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_v, Poll>,
@@ -34,7 +34,7 @@ pub struct Vote<'info_v> {
         init_if_needed,
         space = Voter::INIT_SPACE,
         payer = signer,
-        seeds = [b"voter", authensus_token.as_ref(), facet.to_string().as_bytes(), address.as_ref()],
+        seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
         bump,
     )]
     pub voter: Account<'info_v, Voter>,
@@ -45,9 +45,7 @@ impl<'info_v> Vote<'info_v> {
     pub fn add_vote(
         &mut self,
         bumps: &VoteBumps,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: &MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
@@ -70,7 +68,7 @@ impl<'info_v> Vote<'info_v> {
         // }
 
         require!(self.escrow.end_time < time, VotingError::NotVotingTime);
-        require!(!self.poll.voters.as_ref().unwrap().contains(&address), VotingError::AlreadyVoted);
+        require!(!self.poll.voters.as_ref().unwrap().contains(&params.address), VotingError::AlreadyVoted);
         require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::VotingClosed);   // Better to do time- or threshold-based?
 
         if self.market.state != MarketState::Voting && self.escrow.end_time < time {
@@ -101,17 +99,17 @@ impl<'info_v> Vote<'info_v> {
         if self.poll.total_for + self.poll.total_against == 0 {
             self.poll.set_inner(
                 Poll {
-                    bump: bumps.poll,                   // u8
-                    market: authensus_token,            // Pubkey
-                    facet: self.escrow.facet.clone(),   // Facet
-                    voters: Some(Vec::from([address])), // Option<Vec<Pubkey>>
-                    total_for,                          // u64
-                    total_against,                      // u64
+                    bump: bumps.poll,                           // u8
+                    market: params.authensus_token,             // Pubkey
+                    facet: self.escrow.facet.clone(),           // Facet
+                    voters: Some(Vec::from([params.address])),  // Option<Vec<Pubkey>>
+                    total_for,                                  // u64
+                    total_against,                              // u64
                 }
             );
         } else {
             let voters: &mut Vec<Pubkey> = &mut self.poll.voters.clone().unwrap();
-            voters.push(address);
+            voters.push(params.address);
 
             self.poll.set_inner(
                 Poll {
@@ -127,11 +125,12 @@ impl<'info_v> Vote<'info_v> {
 
         self.voter.set_inner(
             Voter {
-                pk: address,                // Pubkey
-                market: authensus_token,    // Pubkey
-                facet,                      // Facet
-                amount,                     // u64
-                direction,                  // bool
+                bump: bumps.voter,              // u8
+                pk: params.address,             // Pubkey
+                market: params.authensus_token, // Pubkey
+                facet: params.facet.clone(),    // Facet
+                amount,                         // u64
+                direction,                      // bool
             }
         );
         
@@ -139,7 +138,11 @@ impl<'info_v> Vote<'info_v> {
 
     }
 
-    fn receive_vote_token(&self, from: AccountInfo<'info_v>, amount: u64) -> Result<()> {
+    fn receive_vote_token(
+        &self,
+        from: AccountInfo<'info_v>,
+        amount: u64
+    ) -> Result<()> {
 
         let accounts = Transfer {
             from,

@@ -6,7 +6,7 @@ use crate::states::{Facet, Market, MarketState};
 #[instruction(authensus_token: Pubkey)]
 pub struct InitialiseMarket<'info_i> {
     #[account(mut)]
-    admin: Signer<'info_i>,
+    pub admin: Signer<'info_i>,
     #[account(
         init,
         space = Market::INIT_SPACE,
@@ -14,8 +14,8 @@ pub struct InitialiseMarket<'info_i> {
         seeds = [b"market", authensus_token.as_ref()],
         bump,
     )]
-    market: Account<'info_i, Market>,
-    system_program: Program<'info_i, System>,
+    pub market: Account<'info_i, Market>,
+    pub system_program: Program<'info_i, System>,
 }
 
 impl<'info_i> InitialiseMarket<'info_i> {

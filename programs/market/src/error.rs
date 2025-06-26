@@ -65,3 +65,11 @@ pub enum ResultsError {
     VotesDontAddUp,
 
 }
+
+#[error_code]
+pub enum CpiError {
+
+    #[msg("The program ID for CPI was unexpected")]
+    WrongProgramID,
+
+}

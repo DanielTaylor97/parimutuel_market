@@ -1,17 +1,16 @@
 use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
-// use solana_program::sysvar::{Sysvar, clock};
 
 use crate::constants::MAX_ALLOWED_TIMEOUT;
 use crate::error::{BettingError, FacetError};
-use crate::states::{Bettor, Escrow, Facet, Market, MarketState};
+use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet, address: Pubkey)]
+#[instruction(params: MarketParams)]
 pub struct StartMarket<'info_s> {
     #[account(mut)]
     pub signer: Signer<'info_s>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_s, Market>,
@@ -19,7 +18,7 @@ pub struct StartMarket<'info_s> {
         init_if_needed,
         space = Escrow::INIT_SPACE,
         payer = signer,
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_s, Escrow>,
@@ -27,7 +26,7 @@ pub struct StartMarket<'info_s> {
         init_if_needed,
         space = Bettor::INIT_SPACE,
         payer = signer,
-        seeds = [b"bettor", authensus_token.as_ref(), facet.to_string().as_bytes(), address.as_ref()],
+        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
         bump,
     )]
     pub initialiser: Account<'info_s, Bettor>,
@@ -39,23 +38,21 @@ impl<'info_s> StartMarket<'info_s> {
     pub fn start(
         &mut self,
         bumps: &StartMarketBumps,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: &MarketParams,
         timeout: i64,
     ) -> Result<()> {
 
         require!(timeout <= MAX_ALLOWED_TIMEOUT, BettingError::TimeoutTooLarge);
-        require!(self.market.facets.contains(&facet), FacetError::FacetNotInMarket);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
 
         let start_time = Clock::get()?.unix_timestamp;
 
         self.escrow.set_inner(
             Escrow {
                 bump: bumps.escrow,             // u8
-                initialiser: address,           // Pubkey
-                market: authensus_token,        // Pubkey
-                facet,                          // Facet
+                initialiser: params.address,    // Pubkey
+                market: params.authensus_token, // Pubkey
+                facet: params.facet.clone(),    // Facet
                 bettors: None,                  // Option<Vec<Pubkey>>
                 start_time,                     // i64
                 end_time: start_time + timeout, // i64
@@ -81,6 +78,7 @@ impl<'info_s> StartMarket<'info_s> {
 
     pub fn first_bet(
         &mut self,
+        bumps: &StartMarketBumps,
         address: Pubkey,
         amount: u64,
         direction: bool,
@@ -114,6 +112,7 @@ impl<'info_s> StartMarket<'info_s> {
 
         self.initialiser.set_inner(
             Bettor {
+                bump: bumps.initialiser,                    // u8
                 pk: self.signer.to_account_info().key(),    // Pubkey
                 market: self.escrow.market,                 // Pubkey
                 facet: self.escrow.facet.clone(),           // Facet

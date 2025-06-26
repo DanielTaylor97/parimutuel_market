@@ -1,4 +1,8 @@
+#![allow(unexpected_cfgs)]
+
 use anchor_lang::prelude::*;
+
+use voting_tokens::{cpi::accounts::MintTokens, program::VotingTokens,};
 
 declare_id!("H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY");
 
@@ -7,13 +11,13 @@ pub mod contexts;
 pub mod error;
 pub mod constants;
 
-pub use states::Facet;
+pub use states::*;
 pub use contexts::*;
 pub use error::*;
 pub use constants::*;
 
 #[program]
-pub mod market {
+pub mod parimutuel_market {
     use super::*;
 
     pub fn initialise_market(
@@ -27,19 +31,12 @@ pub mod market {
             authensus_token,
             facets
         )
-        // init_market(
-        //     &ctx
-        // )?;
-
-        // Ok(())
 
     }
 
     pub fn start_market(
         ctx: Context<StartMarket>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
         timeout: i64,
@@ -47,131 +44,96 @@ pub mod market {
 
         ctx.accounts.start(
             &ctx.bumps,
-            address,
-            authensus_token,
-            facet,
+            &params,
             timeout,
         );
 
         ctx.accounts.first_bet(
-            address,
+            &ctx.bumps,
+            params.address,
             amount,
             direction
         )
-        // start(
-        //     &ctx,
-        //     authensus_token,
-        // )?;
-
-        // Ok(())
 
     }
 
     pub fn wager(
         ctx: Context<Wager>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
 
         ctx.accounts.place_wager(
-            address,
-            authensus_token,
-            facet,
+            &ctx.bumps,
+            &params,
             amount,
             direction,
         )
 
-        // add_wager(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        //     direction,
-        // )?;
-
-        // Ok(())
     }
 
     pub fn underdog_bet(
         ctx: Context<Wager>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
     ) -> Result<()> {
 
         ctx.accounts.underdog_bet(
-            address,
-            authensus_token,
-            facet,
+            &ctx.bumps,
+            &params,
             amount
         )
-        // add_underdog_bet(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        // )?;
-
-        // Ok(())
+        
     }
 
     pub fn vote(
         ctx: Context<Vote>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
 
         ctx.accounts.add_vote(
             &ctx.bumps,
-            address,
-            authensus_token,
-            facet,
+            &params,
             amount,
             direction
         )
-
-        // add_vote(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        //     direction,
-        // )?;
-
-        // Ok(())
+        
     }
 
     pub fn voting_results(
         ctx: Context<VotingResult>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
     ) -> Result<()> {
 
         ctx.accounts.distribute_sol_to_voters()
-
-        // Ok(())
 
     }
 
     pub fn wager_results(
         ctx: Context<WagerResult>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        ctx_cpi: Context<MintCpiStruct>,
+        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_tokens_to_bettors_and_assign_markets(
-            address,
-            authensus_token,
-            facet,
-        )
+        let program_account: AccountInfo<'_> = ctx_cpi.accounts.callee.to_account_info();
+        let mint_accounts = MintTokens{
+            payer: ctx_cpi.accounts.payer.to_account_info(),
+            mint: ctx_cpi.accounts.mint.to_account_info(),
+            recipient: ctx_cpi.accounts.recipient.to_account_info(),
+            associated_token_program: ctx_cpi.accounts.associated_token_program.to_account_info(),
+            system_program: ctx_cpi.accounts.system_program.to_account_info(),
+            token_program: ctx_cpi.accounts.token_program.to_account_info(),
+            rent: ctx_cpi.accounts.rent.to_account_info(),
+        };
 
-        // Ok(())
+        ctx.accounts.distribute_tokens_to_bettors_and_assign_markets(
+            &params,
+            program_account,
+            mint_accounts,
+        )
 
     }
 
@@ -181,30 +143,25 @@ pub mod market {
         facet: Facet,
     ) -> Result<()> {
 
-        // // Also has to calculate underdog bets
-        // let results = ctx.accounts.determine_result(
-        //     authensus_token,
-        //     facet
-        // )?;
-
-        // ctx.accounts.distribute_sol_to_voters(
-        //     results,
-        // )?;
-
-        // ctx.accounts.distribute_tokens_to_stakers(
-        //     results,
-        // )?;
-
-        // ctx.accounts.assign_voting_markets_to_new_stakers(
-        //     results,
-        // )?;
-
         ctx.accounts.end(
             authensus_token,
             facet,
         )
 
-        // Ok(())
-
     }
+}
+
+#[derive(Accounts)]
+pub struct MintCpiStruct<'info_c> {
+    #[account(mut)]
+    pub payer: UncheckedAccount<'info_c>,   // Check that this works as expected since it is meant to be a signer on the other end
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info_c>,
+    #[account(mut)]
+    pub recipient: UncheckedAccount<'info_c>,
+    pub associated_token_program: UncheckedAccount<'info_c>,
+    pub system_program: UncheckedAccount<'info_c>,
+    pub token_program: UncheckedAccount<'info_c>,
+    pub rent: UncheckedAccount<'info_c>,
+    pub callee: Program<'info_c, VotingTokens>,
 }

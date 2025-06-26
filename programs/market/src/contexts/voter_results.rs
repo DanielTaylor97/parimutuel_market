@@ -5,30 +5,30 @@ use anchor_lang::{
 
 use crate::constants::VOTE_THRESHOLD;
 use crate::error::ResultsError;
-use crate::states::{Escrow, Facet, Market, MarketState, Poll, Voter};
+use crate::states::{Escrow, Facet, Market, MarketParams, MarketState, Poll, Voter};
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet, address: Pubkey)]
+#[instruction(params: MarketParams)]
 pub struct VoterResult<'info_vr> {
     #[account(mut)]
     pub signer: Signer<'info_vr>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_vr, Market>,
     // #[account(
-    //     seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+    //     seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
     //     bump,
     // )]
     // pub escrow: Account<'info_vr, Escrow>,
     #[account(
-        seeds = [b"poll", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_vr, Poll>,
     #[account(
-        seeds = [b"voter", authensus_token.as_ref(), facet.to_string().as_bytes(), address.as_ref()],
+        seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
         bump,
     )]
     pub voter: Account<'info_vr, Voter>,

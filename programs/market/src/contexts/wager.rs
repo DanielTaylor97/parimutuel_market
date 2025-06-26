@@ -3,21 +3,21 @@ use anchor_lang::{
     system_program::{transfer, Transfer}
 };
 
-use crate::states::{Bettor, Escrow, Facet, Market, MarketState};
+use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
 use crate::error::*;
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet, address: Pubkey)]
+#[instruction(params: MarketParams)]
 pub struct Wager<'info_w> {
     #[account(mut)]
     pub signer: Signer<'info_w>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_w, Market>,
     #[account(
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_w, Escrow>,
@@ -25,7 +25,7 @@ pub struct Wager<'info_w> {
         init_if_needed,
         space = Bettor::INIT_SPACE,
         payer = signer,
-        seeds = [b"bettor", authensus_token.as_ref(), facet.to_string().as_bytes(), address.as_ref()],
+        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
         bump,
     )]
     pub bettor: Account<'info_w, Bettor>,
@@ -36,9 +36,8 @@ impl<'info_w> Wager<'info_w> {
 
     pub fn place_wager(
         &mut self,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        bumps: &WagerBumps,
+        params: &MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
@@ -63,7 +62,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&facet), FacetError::FacetNotInMarket);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
 
         self.receive_sol_wager(self.signer.to_account_info(), amount);
@@ -78,9 +77,10 @@ impl<'info_w> Wager<'info_w> {
         if self.bettor.tot_against == 0 && self.bettor.tot_against == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    pk: address,                    // Pubkey
-                    market: authensus_token,        // Pubkey
-                    facet,                          // Facet
+                    bump: bumps.bettor,             // u8
+                    pk: params.address,             // Pubkey
+                    market: params.authensus_token, // Pubkey
+                    facet: params.facet.clone(),    // Facet
                     tot_for: amount_for,            // u64
                     tot_against: amount_against,    // u64
                     tot_underdog: 0_u64             // u64
@@ -89,6 +89,7 @@ impl<'info_w> Wager<'info_w> {
         } else {
             self.bettor.set_inner(
                 Bettor {
+                    bump: bumps.bettor,                                     // u8
                     pk: self.bettor.pk,                                     // Pubkey
                     market: self.bettor.market,                             // Pubkey
                     facet: self.bettor.facet.clone(),                       // Facet
@@ -101,8 +102,8 @@ impl<'info_w> Wager<'info_w> {
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&address) {
-            bettors_clone.push(address);
+        if !bettors_clone.contains(&params.address) {
+            bettors_clone.push(params.address);
         }
 
         self.escrow.set_inner(
@@ -126,9 +127,8 @@ impl<'info_w> Wager<'info_w> {
 
     pub fn underdog_bet(
         &mut self,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        bumps: &WagerBumps,
+        params: &MarketParams,
         amount: u64,
     ) -> Result<()> {
 
@@ -152,7 +152,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&facet), FacetError::FacetNotInMarket);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
         require!(self.bettor.tot_for > 0 || self.bettor.tot_against > 0, BettingError::UnderdogWithOtherBet);
 
@@ -161,9 +161,10 @@ impl<'info_w> Wager<'info_w> {
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    pk: address,                // Pubkey
-                    market: authensus_token,    // Pubkey
-                    facet,                      // Facet
+                    bump: bumps.bettor,         // u8
+                    pk: params.address,                // Pubkey
+                    market: params.authensus_token,    // Pubkey
+                    facet: params.facet.clone(),                      // Facet
                     tot_for: 0_u64,             // u64
                     tot_against: 0_u64,         // u64
                     tot_underdog: amount,       // u64
@@ -172,6 +173,7 @@ impl<'info_w> Wager<'info_w> {
         } else {
             self.bettor.set_inner(
                 Bettor {
+                    bump: bumps.bettor,                                 // u8
                     pk: self.bettor.pk,                                 // Pubkey
                     market: self.bettor.market,                         // Pubkey
                     facet: self.bettor.facet.clone(),                   // Facet
@@ -184,9 +186,9 @@ impl<'info_w> Wager<'info_w> {
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&address) {
+        if !bettors_clone.contains(&params.address) {
 
-            bettors_clone.push(address);
+            bettors_clone.push(params.address);
 
             self.escrow.set_inner(
                 Escrow {
