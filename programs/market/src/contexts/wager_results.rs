@@ -2,11 +2,18 @@ use anchor_lang::{
     prelude::*,
     system_program::{Transfer, transfer}
 };
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount}
+};
 
-use voting_tokens::cpi::{accounts::MintTokens, mint_tokens};
+use voting_tokens::{
+    cpi::{accounts::MintTokens, mint_tokens},
+    program::VotingTokens,
+};
 
-use crate::constants::{DIV_BUFFER, PERCENTAGE_WINNINGS_KEPT, VOTE_THRESHOLD};
-use crate::error::ResultsError;
+use crate::constants::{DIV_BUFFER, PERCENTAGE_WINNINGS_KEPT, VOTE_THRESHOLD, VOTING_TOKENS_PROGRAM_ID};
+use crate::error::{CpiError, ResultsError};
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 
 #[derive(Accounts)]
@@ -34,7 +41,15 @@ pub struct WagerResult<'info_wr> {
         bump,
     )]
     pub poll: Account<'info_wr, Poll>,
+    #[account(mut)]
+    pub mint: Account<'info_wr, Mint>,
+    #[account(mut)]
+    pub recipient: Account<'info_wr, TokenAccount>,
     pub system_program: Program<'info_wr, System>,
+    pub token_program: Program<'info_wr, Token>,
+    pub associated_token_program: Program<'info_wr, AssociatedToken>,
+    pub rent: Sysvar<'info_wr, Rent>,
+    pub voting_tokens_program: Program<'info_wr, VotingTokens>,
 }
 
 impl<'info_wr> WagerResult<'info_wr> {
@@ -42,8 +57,6 @@ impl<'info_wr> WagerResult<'info_wr> {
     pub fn distribute_tokens_to_bettors_and_assign_markets(
         &mut self,
         params: &MarketParams,
-        program_account:AccountInfo<'_>,
-        accounts: MintTokens<'_>,
     ) -> Result<()> {
 
         require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
@@ -79,38 +92,45 @@ impl<'info_wr> WagerResult<'info_wr> {
             self.bettor.tot_underdog,
         );
 
+        if bet_returned == 0 {
+            return Ok(())
+        }
+
         let winnings: u64 = (PERCENTAGE_WINNINGS_KEPT*winnings_pre)/100;
 
         // Reimburse bets
         self.reimburse_sol_wager(self.signer.to_account_info(), bet_returned);
 
         // Mint and allocate voting tokens
-        self.assign_markets_to_new_voter(
-            program_account,
-            accounts,
-            winnings,
-        )
+        self.assign_markets_to_new_voter(winnings)
 
     }
 
     fn assign_markets_to_new_voter(
         &mut self,
-        program_account:AccountInfo<'_>,
-        accounts: MintTokens<'_>,
         winnings: u64,
     ) -> Result<()> {
 
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
+
+        let program_account: AccountInfo<'_> = self.voting_tokens_program.to_account_info();
+
         require!(program_account.key().to_string() == VOTING_TOKENS_PROGRAM_ID, CpiError::WrongProgramID);
-        
-        // let seeds: &[&[u8]; 2] = &["mint".as_bytes(), &[bumps.mint]];
-        // let signer: [&[&[u8]]; 1] = [&seeds[..]];
+
+        let accounts: MintTokens<'_> = MintTokens{
+            payer: self.signer.to_account_info(),
+            mint: self.mint.to_account_info(),
+            recipient: self.recipient.to_account_info(),
+            associated_token_program: self.associated_token_program.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+            rent: self.rent.to_account_info(),
+        };
 
         // No PDAs required for the CPI, so we use new() and not new_with_signer()
         let cpi_ctx: CpiContext<'_, '_, '_, '_, MintTokens<'_>> = CpiContext::new(
             program_account,
             accounts,
-            // &signer,
         );
 
         mint_tokens(

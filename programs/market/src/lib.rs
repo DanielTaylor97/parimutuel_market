@@ -2,8 +2,6 @@
 
 use anchor_lang::prelude::*;
 
-use voting_tokens::{cpi::accounts::MintTokens, program::VotingTokens,};
-
 declare_id!("H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY");
 
 pub mod states;
@@ -103,36 +101,22 @@ pub mod parimutuel_market {
         
     }
 
-    pub fn voting_results(
-        ctx: Context<VotingResult>,
+    pub fn voter_results(
+        ctx: Context<VoterResult>,
         params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_sol_to_voters()
+        ctx.accounts.distribute_sol_to_voters(params.address)
 
     }
 
     pub fn wager_results(
         ctx: Context<WagerResult>,
-        ctx_cpi: Context<MintCpiStruct>,
         params: MarketParams,
     ) -> Result<()> {
 
-        let program_account: AccountInfo<'_> = ctx_cpi.accounts.callee.to_account_info();
-        let mint_accounts = MintTokens{
-            payer: ctx_cpi.accounts.payer.to_account_info(),
-            mint: ctx_cpi.accounts.mint.to_account_info(),
-            recipient: ctx_cpi.accounts.recipient.to_account_info(),
-            associated_token_program: ctx_cpi.accounts.associated_token_program.to_account_info(),
-            system_program: ctx_cpi.accounts.system_program.to_account_info(),
-            token_program: ctx_cpi.accounts.token_program.to_account_info(),
-            rent: ctx_cpi.accounts.rent.to_account_info(),
-        };
-
         ctx.accounts.distribute_tokens_to_bettors_and_assign_markets(
             &params,
-            program_account,
-            mint_accounts,
         )
 
     }
@@ -149,19 +133,4 @@ pub mod parimutuel_market {
         )
 
     }
-}
-
-#[derive(Accounts)]
-pub struct MintCpiStruct<'info_c> {
-    #[account(mut)]
-    pub payer: UncheckedAccount<'info_c>,   // Check that this works as expected since it is meant to be a signer on the other end
-    #[account(mut)]
-    pub mint: UncheckedAccount<'info_c>,
-    #[account(mut)]
-    pub recipient: UncheckedAccount<'info_c>,
-    pub associated_token_program: UncheckedAccount<'info_c>,
-    pub system_program: UncheckedAccount<'info_c>,
-    pub token_program: UncheckedAccount<'info_c>,
-    pub rent: UncheckedAccount<'info_c>,
-    pub callee: Program<'info_c, VotingTokens>,
 }
