@@ -1,92 +1,85 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::VOTE_THRESHOLD;
-use crate::error::VotingError;
-use crate::states::{Bettor, Escrow, Facet, Market, MarketState, Poll, Voter};
+use crate::error::{FacetError, MarketError};
+use crate::states::{Escrow, Market, MarketParams, MarketState, Poll};
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet)]
+#[instruction(params: MarketParams)]
 pub struct CallMarket<'info_c> {
     #[account(mut)]
     pub admin: Signer<'info_c>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_c, Market>,
     #[account(
-        seeds = [b"poll", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_c, Poll>,
     #[account(
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_c, Escrow>,
 }
 
 impl<'info_c> CallMarket<'info_c> {
-    
-    pub async fn determine_result(
-        &mut self,
-        program_id: &Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
-    ) -> Result<bool> {
-
-        require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::NotVotingTime);   // Better to do time- or threshold-based?
-
-        let mut tot_for: u64 = 0_u64;
-        let mut tot_against: u64 = 0_u64;
-
-        let facet_str: String = facet.to_string();
-
-        let mut voter_key: Pubkey;
-        let mut bump: u8;
-        // let mut seeds: &[&[u8]];
-
-        for key in self.poll.voters.as_ref().unwrap().iter() {
-
-            let seeds: &[&[u8]; 4] = &[b"voter", authensus_token.as_ref(), facet_str.as_bytes(), key.as_ref()];
-            (voter_key, bump) = Pubkey::find_program_address(seeds, program_id);
-
-            //
-
-        }
-
-        Ok(true)
-
-    }
-
-    pub fn distribute_sol_to_voters(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn distribute_tokens_to_stakers(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn assign_voting_markets_to_new_stakers(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
 
     pub fn end(
         &mut self,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: &MarketParams,
     ) -> Result<()> {
 
-        // Set market inactive, set escrow counts and polls to zero if not already done
+        // Requirements:
+        //  - escrow and poll should have the same market, which is this market
+        //  - escrow and poll should have the same facet
+        //  - escrow/poll facet should be in the market facets vec
+        //  - Tokens and SOL have been reimbursed as necessary                      TODO
+        require!(self.market.key() == self.escrow.market && self.market.key() == self.poll.market && self.market.token == params.authensus_token, MarketError::NotTheSameMarket);
+        require!(self.escrow.facet == self.poll.facet && self.escrow.facet == params.facet, FacetError::NotTheSameFacet);
+        require!(self.market.facets.contains(&self.escrow.facet), FacetError::FacetNotInMarket);
+
+        // Set market inactive if that hasn't already been done, set escrow counts and polls to zero if not already done
+
+        if self.market.state != MarketState::Inactive {
+            self.market.set_inner(
+                Market {
+                    bump: self.market.bump,             // u8
+                    token: self.market.token,           // Pubkey
+                    facets: self.market.facets.clone(), // Vec<Facet>
+                    state: MarketState::Inactive,       // MarketState
+                    round: self.market.round,           // u16
+                }
+            );
+        }
+
+        self.escrow.set_inner(
+            Escrow{
+                bump: self.escrow.bump,                 // u8
+                initialiser: self.escrow.initialiser,   // Pubkey
+                market: self.escrow.market,             // Pubkey
+                facet: self.escrow.facet.clone(),       // Facet
+                bettors: None,                          // Option<Vec<Pubkey>>
+                start_time: self.escrow.start_time,     // i64
+                end_time: self.escrow.end_time,         // i64
+                tot_for: 0_u64,                         // u64
+                tot_against: 0_u64,                     // u64
+                tot_underdog: 0_u64,                    // u64
+            }
+        );
+
+        self.poll.set_inner(
+            Poll{
+                bump: self.poll.bump,           // u8
+                market: self.poll.market,       // Pubkey
+                facet: self.poll.facet.clone(), // Facet
+                voters: None,                   // Option<Vec<Pubkey>>
+                total_for: 0_u64,               // u64
+                total_against: 0_u64,           // u64
+            }
+        );
 
         Ok(())
     }

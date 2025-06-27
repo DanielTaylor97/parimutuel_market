@@ -42,6 +42,10 @@ impl<'info_s> StartMarket<'info_s> {
         timeout: i64,
     ) -> Result<()> {
 
+        // TODO: Timeout should be a parameter of the Market struct -- instantiated at initialisation. We do not want several different timeouts for one market
+
+        // Requirements:
+        //  - 
         require!(timeout <= MAX_ALLOWED_TIMEOUT, BettingError::TimeoutTooLarge);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
 

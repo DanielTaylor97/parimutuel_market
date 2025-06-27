@@ -123,13 +123,11 @@ pub mod parimutuel_market {
 
     pub fn call_market(
         ctx: Context<CallMarket>,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
     ) -> Result<()> {
 
         ctx.accounts.end(
-            authensus_token,
-            facet,
+            &params,
         )
 
     }

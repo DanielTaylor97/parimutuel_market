@@ -2,8 +2,21 @@ use anchor_lang::error_code;
 
 #[error_code]
 pub enum FacetError {
+
     #[msg("The selected facet is not present in the given market")]
     FacetNotInMarket,
+
+    #[msg("The poll and escrow must be for the same facet")]
+    NotTheSameFacet,
+
+}
+
+#[error_code]
+pub enum MarketError {
+
+    #[msg("The poll/escrow must be for the same market")]
+    NotTheSameMarket,
+
 }
 
 #[error_code]
