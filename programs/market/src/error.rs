@@ -60,6 +60,12 @@ pub enum VotingError {
     #[msg("The voting has finished for this round")]
     VotingClosed,
 
+    #[msg("Not enough voting tokens to make that transaction")]
+    InsufficientVotingTokens,
+
+    #[msg("The mint provided is not the expected mint")]
+    IncorrectMint,
+
 }
 
 #[error_code]
@@ -70,6 +76,9 @@ pub enum ResultsError {
 
     #[msg("Given address is not a bettor in this market-facet combination")]
     NotABettor,
+
+    #[msg("The signer is not the person receiving the results")]
+    SignerNotPK,
 
     #[msg("This person is either not a voter or has already tried to receive their voting reward")]
     NotAVoter,

@@ -44,7 +44,12 @@ pub struct WagerResult<'info_wr> {
     pub poll: Account<'info_wr, Poll>,
     #[account(mut)]
     pub mint: Account<'info_wr, Mint>,
-    #[account(mut)]
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+    )]
     pub recipient: Account<'info_wr, TokenAccount>,
     pub system_program: Program<'info_wr, System>,
     pub token_program: Program<'info_wr, Token>,
@@ -60,8 +65,13 @@ impl<'info_wr> WagerResult<'info_wr> {
         params: &MarketParams,
     ) -> Result<()> {
 
+        // Requirements:
+        //  - Voting is finished
+        //  - Given address is a bettor
+        //  - Signer is the bettor
         require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
         require!(self.escrow.bettors.as_ref().unwrap().contains(&params.address), ResultsError::NotABettor);
+        require!(self.signer.key == &params.address, ResultsError::SignerNotPK);
         // require!(self.escrow.total_underdog == 0, ResultsError::UnderdogBetsNotResolved);
 
         // Change the market state if necessary
@@ -100,7 +110,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         let winnings: u64 = (PERCENTAGE_WINNINGS_KEPT*winnings_pre)/100;
 
         // Reimburse bets
-        self.reimburse_sol_wager(self.signer.to_account_info(), bet_returned);
+        self.reimburse_sol_wager(self.signer.to_account_info(), bet_returned)?;
 
         // Mint and allocate voting tokens
         self.assign_markets_to_new_voter(winnings)
@@ -138,6 +148,8 @@ impl<'info_wr> WagerResult<'info_wr> {
             cpi_ctx,
             winnings,
         )?;
+
+        // TODO: ACTUALLY ASSIGN NEW MARKETS
 
         Ok(())
 

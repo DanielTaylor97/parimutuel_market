@@ -65,7 +65,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
 
-        self.receive_sol_wager(self.signer.to_account_info(), amount);
+        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
         let amount_for: u64 = match direction {
             true => amount,
@@ -156,7 +156,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
         require!(self.bettor.tot_for > 0 || self.bettor.tot_against > 0, BettingError::UnderdogWithOtherBet);
 
-        self.receive_sol_wager(self.signer.to_account_info(), amount);
+        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(

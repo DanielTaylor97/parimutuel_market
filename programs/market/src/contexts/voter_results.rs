@@ -1,4 +1,8 @@
 use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount}
+};
 
 use treasury::{
     cpi::{accounts::Transact, reimburse},
@@ -6,13 +10,21 @@ use treasury::{
     self,
     Treasury,
 };
+use voting_tokens::{
+    cpi::{accounts::MintTokens, mint_tokens},
+    self,
+    program::VotingTokens,
+};
 
-use crate::error::ResultsError;
+use crate::constants::VOTING_TOKENS_PROGRAM_ID;
+use crate::error::{CpiError, ResultsError};
 use crate::states::{Market, MarketParams, MarketState, Poll, Voter};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
 pub struct VoterResult<'info_vr> {
+    #[account(mut)]
+    pub treasury_auth: Signer<'info_vr>,
     #[account(mut)]
     pub signer: Signer<'info_vr>,
     #[account(
@@ -31,26 +43,18 @@ pub struct VoterResult<'info_vr> {
     )]
     pub voter: Account<'info_vr, Voter>,
     #[account(mut)]
+    pub voting_token_account: Account<'info_vr, TokenAccount>,
+    #[account(mut)]
     pub treasury: Account<'info_vr, Treasury>,
     pub treasury_program: Program<'info_vr, TreasuryProgram>,
+    pub associated_token_program: Program<'info_vr, AssociatedToken>,
+    #[account(mut)]
+    pub mint: Account<'info_vr, Mint>,
     pub system_program: Program<'info_vr, System>,
+    pub token_program: Program<'info_vr, Token>,
+    pub rent: Sysvar<'info_vr, Rent>,
+    pub voting_tokens_program: Program<'info_vr, VotingTokens>,
 }
-
-/*
-pub struct Transact<'info_t> {
-    #[account(mut)]
-    pub signer: Signer<'info_t>,
-    #[account(mut)]
-    pub coparty: Signer<'info_t>,
-    #[account(
-        mut,
-        seeds = [b"treasury"],
-        bump,
-    )]
-    pub treasury: Account<'info_t, Treasury>,
-    pub system_program: Program<'info_t, System>,
-}
-*/
 
 impl<'info_vr> VoterResult<'info_vr> {
 
@@ -75,9 +79,11 @@ impl<'info_vr> VoterResult<'info_vr> {
         }
 
         let accounts = Transact {
-            signer: self.signer.to_account_info(),
-            coparty: self.voter.to_account_info(),
+            signer: self.treasury_auth.to_account_info(),                               // This needs to be the treasury authority
+            coparty: self.signer.to_account_info(),                                     // This needs to be the person receiving the reimbursement
             treasury: self.treasury.to_account_info(),
+            voting_token_account: self.voting_token_account.to_account_info(),
+            associated_token_program: self.associated_token_program.to_account_info(),
             system_program: self.system_program.to_account_info(),
         };
 
@@ -97,7 +103,8 @@ impl<'info_vr> VoterResult<'info_vr> {
         &mut self
     ) -> Result<()> {
 
-        self.reimburse_votes(self.signer.to_account_info(), self.voter.amount)
+        // In the case of a tie everyone gets their votes tokens re-minted
+        self.reimburse_votes(self.voting_token_account.to_account_info(), self.voter.amount)
 
     }
 
@@ -107,14 +114,31 @@ impl<'info_vr> VoterResult<'info_vr> {
         amount: u64
     ) -> Result<()> {
 
-        // let accounts = Transfer {
-        //     from: self.escrow.to_account_info(),
-        //     to,
-        // };
+        require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
 
-        // let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
+        let program_account: AccountInfo<'_> = self.voting_tokens_program.to_account_info();
 
-        // transfer(cpi_ctx, amount)
+        require!(program_account.key().to_string() == VOTING_TOKENS_PROGRAM_ID, CpiError::WrongProgramID);
+
+        let accounts: MintTokens<'_> = MintTokens{
+            payer: self.signer.to_account_info(),
+            mint: self.mint.to_account_info(),
+            recipient: to,
+            associated_token_program: self.associated_token_program.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+            rent: self.rent.to_account_info(),
+        };
+
+        let cpi_ctx: CpiContext<'_, '_, '_, '_, MintTokens<'_>> = CpiContext::new(
+            program_account,
+            accounts,
+        );
+
+        mint_tokens(
+            cpi_ctx,
+            amount,
+        )?;
 
         Ok(())
 

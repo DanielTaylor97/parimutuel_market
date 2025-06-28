@@ -1,14 +1,8 @@
 use std::str::FromStr;
-use anchor_lang::{
-    prelude::*,
-    system_program::{Transfer, transfer}
-};
-use anchor_spl::{associated_token::{get_associated_token_address_with_program_id, AssociatedToken}, token::TokenAccount};
-
-use voting_tokens::{
-    cpi::{accounts::MintTokens, mint_tokens},
-    self,
-    program::VotingTokens,
+use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::{get_associated_token_address_with_program_id, AssociatedToken},
+    token::{transfer_checked, Mint, Token, TokenAccount, TransferChecked},
 };
 
 use crate::constants::{VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID, VOTE_THRESHOLD};
@@ -47,8 +41,11 @@ pub struct Vote<'info_v> {
     )]
     pub voter: Account<'info_v, Voter>,
     #[account(mut)]
-    pub voting_token_account: Account<'info_v, TokenAccount>,   // This should already be initialised
+    pub mint: Account<'info_v, Mint>,
+    #[account(mut)]
+    pub voting_token_account: Account<'info_v, TokenAccount>,   // This should already be initialised from wager_results (or purchasing)
     pub system_program: Program<'info_v, System>,
+    pub token_program: Program<'info_v, Token>,
     pub associated_token_program: Program<'info_v, AssociatedToken>,
 }
 
@@ -92,12 +89,16 @@ impl<'info_v> Vote<'info_v> {
         //  - Cannot have voted here already                √
         //  - Voting threshold cannot have been reached yet √
         //  - signer needs to be the same as the voter pk   √
-        //  - signer needs to be the owner of the ATA       √
+        //  - ATA needs to be correct                       √
+        //  - ATA must have sufficient tokens for this vote √
+        //  - Mint provided must be correct
         require!(self.escrow.end_time < time, VotingError::NotVotingTime);
         require!(!self.poll.voters.as_ref().unwrap().contains(&params.address), VotingError::AlreadyVoted);
         require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::VotingClosed);   // Better to do time- or threshold-based?
-        require!(self.signer.key() == self.voter.key(), VotingError::SignerDifferentFromVoter);
+        require!(self.signer.key() == self.voter.pk, VotingError::SignerDifferentFromVoter);
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
+        require!(self.voting_token_account.amount >= amount, VotingError::InsufficientVotingTokens);
+        require!(self.mint.key() == mint_pk, VotingError::IncorrectMint);
 
         if self.market.state != MarketState::Voting && self.escrow.end_time < time {
             self.market.set_inner(
@@ -114,7 +115,7 @@ impl<'info_v> Vote<'info_v> {
         require!(self.market.state == MarketState::Voting, VotingError::NotVotingTime);
 
         // Receive voting tokens from ATA
-        self.receive_vote_token(self.signer.to_account_info(), amount)?;
+        self.receive_vote_token(self.voting_token_account.to_account_info(), amount)?;
 
         // Update poll + voter
         let total_for: u64 = match direction {
@@ -172,15 +173,22 @@ impl<'info_v> Vote<'info_v> {
         amount: u64
     ) -> Result<()> {
 
-        let accounts = Transfer {
+        let accounts = TransferChecked {
+            mint: self.mint.to_account_info(),
             from,
-            to: self.escrow.to_account_info()
+            to: self.voting_token_account.to_account_info(),
+            authority: self.signer.to_account_info(),           // Owner of the source token account
         };
 
-        let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
+        let cpi_ctx = CpiContext::new(self.token_program.to_account_info(), accounts);
 
-        // THIS TRANSFERS SOL. NEEDS TO TRANSFER VOTE TOKENS
-        transfer(cpi_ctx, amount)
+        transfer_checked(
+            cpi_ctx,
+            amount,
+            self.mint.decimals,
+        )?;
+
+        Ok(())
 
     }
 
