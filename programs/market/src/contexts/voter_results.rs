@@ -1,11 +1,14 @@
-use anchor_lang::{
-    prelude::*,
-    system_program::{Transfer, transfer}
+use anchor_lang::prelude::*;
+
+use treasury::{
+    cpi::{accounts::Transact, reimburse},
+    program::TreasuryProgram,
+    self,
+    Treasury,
 };
 
-use crate::constants::VOTE_THRESHOLD;
 use crate::error::ResultsError;
-use crate::states::{Escrow, Facet, Market, MarketParams, MarketState, Poll, Voter};
+use crate::states::{Market, MarketParams, MarketState, Poll, Voter};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -17,11 +20,6 @@ pub struct VoterResult<'info_vr> {
         bump,
     )]
     pub market: Account<'info_vr, Market>,
-    // #[account(
-    //     seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
-    //     bump,
-    // )]
-    // pub escrow: Account<'info_vr, Escrow>,
     #[account(
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
@@ -32,7 +30,27 @@ pub struct VoterResult<'info_vr> {
         bump,
     )]
     pub voter: Account<'info_vr, Voter>,
+    #[account(mut)]
+    pub treasury: Account<'info_vr, Treasury>,
+    pub treasury_program: Program<'info_vr, TreasuryProgram>,
+    pub system_program: Program<'info_vr, System>,
 }
+
+/*
+pub struct Transact<'info_t> {
+    #[account(mut)]
+    pub signer: Signer<'info_t>,
+    #[account(mut)]
+    pub coparty: Signer<'info_t>,
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump,
+    )]
+    pub treasury: Account<'info_t, Treasury>,
+    pub system_program: Program<'info_t, System>,
+}
+*/
 
 impl<'info_vr> VoterResult<'info_vr> {
 
@@ -52,9 +70,26 @@ impl<'info_vr> VoterResult<'info_vr> {
 
         let winnings: u64 = self.calc_winnings(direction).unwrap();
 
-        self.payout_votes_for_sol(self.signer.to_account_info(), winnings);
+        if winnings == 0 {
+            return Ok(())
+        }
 
-        Ok(())
+        let accounts = Transact {
+            signer: self.signer.to_account_info(),
+            coparty: self.voter.to_account_info(),
+            treasury: self.treasury.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(
+            self.treasury_program.to_account_info(),
+            accounts,
+        );
+
+        reimburse(
+            cpi_ctx,
+            winnings,
+        )
 
     }
 
@@ -80,25 +115,6 @@ impl<'info_vr> VoterResult<'info_vr> {
         // let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
 
         // transfer(cpi_ctx, amount)
-
-        Ok(())
-
-    }
-
-    fn payout_votes_for_sol(
-        &self,
-        to: AccountInfo<'info_vr>,
-        amount: u64
-    ) -> Result<()> {
-
-        let accounts = Transfer {
-            from: self.escrow.to_account_info(),
-            to,
-        };
-
-        let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
-
-        transfer(cpi_ctx, amount)
 
         Ok(())
 

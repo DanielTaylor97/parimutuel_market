@@ -1,0 +1,23 @@
+use anchor_lang::error_code;
+
+#[error_code]
+pub enum InitError {
+
+    #[msg("The supplied token mint is not the expected one")]
+    WrongTokenMint,
+
+}
+
+#[error_code]
+pub enum TransactionError {
+
+    #[msg("The signer provided is not the authority of the treasury")]
+    SignerNotAuthority,
+
+    #[msg("The ATA supplied is not that of the Treasury")]
+    WrongATA,
+
+    #[msg("The token balance of the ATA disagrees with the treasury token accounting")]
+    BalancesDisagree,
+
+}

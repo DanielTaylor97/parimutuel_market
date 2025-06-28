@@ -44,7 +44,7 @@ pub mod parimutuel_market {
             &ctx.bumps,
             &params,
             timeout,
-        );
+        )?;
 
         ctx.accounts.first_bet(
             &ctx.bumps,

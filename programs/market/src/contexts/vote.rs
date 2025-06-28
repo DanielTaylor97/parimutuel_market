@@ -1,9 +1,17 @@
+use std::str::FromStr;
 use anchor_lang::{
     prelude::*,
     system_program::{Transfer, transfer}
 };
+use anchor_spl::{associated_token::{get_associated_token_address_with_program_id, AssociatedToken}, token::TokenAccount};
 
-use crate::constants::VOTE_THRESHOLD;
+use voting_tokens::{
+    cpi::{accounts::MintTokens, mint_tokens},
+    self,
+    program::VotingTokens,
+};
+
+use crate::constants::{VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID, VOTE_THRESHOLD};
 use crate::error::VotingError;
 use crate::states::{Escrow, Market, MarketParams, MarketState, Poll, Voter};
 
@@ -38,7 +46,10 @@ pub struct Vote<'info_v> {
         bump,
     )]
     pub voter: Account<'info_v, Voter>,
+    #[account(mut)]
+    pub voting_token_account: Account<'info_v, TokenAccount>,   // This should already be initialised
     pub system_program: Program<'info_v, System>,
+    pub associated_token_program: Program<'info_v, AssociatedToken>,
 }
 
 impl<'info_v> Vote<'info_v> {
@@ -67,9 +78,26 @@ impl<'info_v> Vote<'info_v> {
         //     return Err(anchor_lang::error!(VotingError::VotingClosed));
         // }
 
+        let mint_pk = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
+        let mint_program_pk = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+
+        let signer_ata = get_associated_token_address_with_program_id(
+             &self.signer.key(),
+             &mint_pk,
+             &mint_program_pk,
+        );
+
+        // Requirements:
+        //  - The betting round has finished                √
+        //  - Cannot have voted here already                √
+        //  - Voting threshold cannot have been reached yet √
+        //  - signer needs to be the same as the voter pk   √
+        //  - signer needs to be the owner of the ATA       √
         require!(self.escrow.end_time < time, VotingError::NotVotingTime);
         require!(!self.poll.voters.as_ref().unwrap().contains(&params.address), VotingError::AlreadyVoted);
         require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::VotingClosed);   // Better to do time- or threshold-based?
+        require!(self.signer.key() == self.voter.key(), VotingError::SignerDifferentFromVoter);
+        require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
 
         if self.market.state != MarketState::Voting && self.escrow.end_time < time {
             self.market.set_inner(
@@ -85,8 +113,8 @@ impl<'info_v> Vote<'info_v> {
 
         require!(self.market.state == MarketState::Voting, VotingError::NotVotingTime);
 
-        // Receive voting tokens from signer
-        self.receive_vote_token(self.signer.to_account_info(), amount);
+        // Receive voting tokens from ATA
+        self.receive_vote_token(self.signer.to_account_info(), amount)?;
 
         // Update poll + voter
         let total_for: u64 = match direction {

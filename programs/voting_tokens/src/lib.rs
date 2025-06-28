@@ -7,12 +7,10 @@ declare_id!("8MrQHajcffRco93T4kR5FiLnrCYA7nj1yYXoauHRdg5d");
 pub mod constants;
 pub mod error;
 pub mod contexts;
-// pub mod states;
 
 pub use constants::*;
 pub use error::*;
 pub use contexts::*;
-// pub use states::*;
 
 #[program]
 pub mod voting_tokens {

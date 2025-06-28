@@ -9,6 +9,7 @@ use anchor_spl::{
 
 use voting_tokens::{
     cpi::{accounts::MintTokens, mint_tokens},
+    self,
     program::VotingTokens,
 };
 

@@ -48,6 +48,12 @@ pub enum VotingError {
     #[msg("It is not the voting period yet")]
     NotVotingTime,
 
+    #[msg("The voter needs to come from the same person who signs the transaction")]
+    SignerDifferentFromVoter,
+
+    #[msg("Provided ATA does not match the mint and signer")]
+    IncorrectATA,
+
     #[msg("Only one vote allowed per market")]
     AlreadyVoted,
 
@@ -67,9 +73,6 @@ pub enum ResultsError {
 
     #[msg("This person is either not a voter or has already tried to receive their voting reward")]
     NotAVoter,
-
-    // #[msg("The underdog bets have not yet been resolved")]
-    // UnderdogBetsNotResolved,
 
     #[msg("The wager numbers don't add up")]
     WagersDontAddUp,
