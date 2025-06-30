@@ -1,4 +1,3 @@
-// use anchor_spl::token_interface::{Mint, TokenInterface};
 use anchor_lang::prelude::{borsh::{BorshDeserialize, BorshSerialize}, *};
 use anchor_spl::{
     metadata::{
@@ -10,9 +9,7 @@ use anchor_spl::{
     token::{Mint, Token},
 };
 
-// use crate::constants::VOTE_THRESHOLD;
-// use crate::error::ResultsError;
-// use crate::states::{Recipient, Treasury};
+use crate::error::InitError;
 
 #[derive(Accounts)]
 #[instruction(params: InitTokenParams)]
@@ -21,7 +18,6 @@ pub struct Initialise<'info_i> {
     pub signer: Signer<'info_i>,
     #[account(
         init,
-        // space = Treasury::INIT_SPACE,
         payer = signer,
         seeds = [b"mint"],
         bump,
@@ -52,6 +48,16 @@ impl<'info_i> Initialise<'info_i> {
         bumps: &InitialiseBumps,
         metadata: InitTokenParams,
     ) -> Result<()> {
+
+        // Requirements:                        |   Implemented:
+        //  - Name is `AuthensusVotingToken`    |       √
+        //  - Symbol is `AUTHVOTE`              |       √
+        //  - URI should be empty               |       √
+        //  - Decimals should be 9              |       √
+        require!(metadata.name == "AuthensusVotingToken".to_string(), InitError::WrongName);
+        require!(metadata.symbol == "AUTHVOTE".to_string(), InitError::WrongSymbol);
+        require!(metadata.uri == "".to_string(), InitError::WrongUri);
+        require!(metadata.decimals == 9, InitError::WrongDecimals);
 
         let seeds: &[&[u8]; 2] = &["mint".as_bytes(), &[bumps.mint]];
         let signer: [&[&[u8]]; 1] = [&seeds[..]];
@@ -88,7 +94,7 @@ impl<'info_i> Initialise<'info_i> {
             None,
         )?;
 
-        msg!("Token mint created successfully.");
+        msg!("Token mint created successfully with key {:?}", self.mint.key().to_string());
 
         Ok(())
 

@@ -4,10 +4,6 @@ use anchor_spl::{
     token::{mint_to, Mint, MintTo, Token, TokenAccount}
 };
 
-// use crate::constants::VOTE_THRESHOLD;
-// use crate::error::ResultsError;
-// use crate::states::{Recipient, Treasury};
-
 #[derive(Accounts)]
 pub struct MintTokens<'info_m> {
     #[account(mut)]
@@ -39,8 +35,6 @@ impl<'info_m> MintTokens<'info_m> {
         bumps: &MintTokensBumps,
         amount: u64,
     ) -> Result<()> {
-
-        // require!();
         
         let seeds: &[&[u8]; 2] = &["mint".as_bytes(), &[bumps.mint]];
         let signer: [&[&[u8]]; 1] = [&seeds[..]];
