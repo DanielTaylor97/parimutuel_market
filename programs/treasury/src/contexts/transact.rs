@@ -45,13 +45,12 @@ impl<'info_t> Transact<'info_t> {
              &mint_program_pk,
         );
 
-        // Requirements:
-        //  - Signer should be the treasury authority                               √
-        //  - voting_token_account should be derivable as signer voting token ATA   √
+        // Requirements:                                                            |   Implemented
+        //  - Signer should be the treasury authority                               |       √
+        //  - voting_token_account should be derivable as signer voting token ATA   |       √
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
         require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
 
-        // Make deposit here
         self.transfer_sol(
             self.coparty.to_account_info(),
             self.treasury.to_account_info(),
@@ -67,9 +66,19 @@ impl<'info_t> Transact<'info_t> {
         amount: u64,
     ) -> Result<()> {
 
-        // Requirements:
-        //  - signer should be the treasury authority   √
+        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
+        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
+             &self.signer.key(),
+             &mint_pk,
+             &mint_program_pk,
+        );
+
+        // Requirements:                                                            |   Implemented
+        //  - Signer should be the treasury authority                               |       √
+        //  - voting_token_account should be derivable as signer voting token ATA   |       √
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
+        require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
 
         // Make withdrawal here
         self.transfer_sol(

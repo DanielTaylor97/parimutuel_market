@@ -17,7 +17,4 @@ pub enum TransactionError {
     #[msg("The ATA supplied is not that of the Treasury")]
     WrongATA,
 
-    #[msg("The token balance of the ATA disagrees with the treasury token accounting")]
-    BalancesDisagree,
-
 }

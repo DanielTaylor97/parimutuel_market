@@ -41,6 +41,8 @@ impl<'info_i> Initialise<'info_i> {
         bumps: &InitialiseBumps,
     ) -> Result<()> {
 
+        // Requirements:                            |   Implemented:
+        //  - The mint must be the expected account |       √
         require!(self.mint.key().to_string() == VOTING_TOKENS_MINT_ID, InitError::WrongTokenMint);
 
         self.treasury.set_inner(
