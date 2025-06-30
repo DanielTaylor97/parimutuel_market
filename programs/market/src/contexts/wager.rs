@@ -3,7 +3,13 @@ use anchor_lang::{
     system_program::{transfer, Transfer}
 };
 
+use treasury::{
+    self,
+    Treasury,
+};
+
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
+use crate::constants::TREASURY_AUTHORITY;
 use crate::error::*;
 
 #[derive(Accounts)]
@@ -11,6 +17,8 @@ use crate::error::*;
 pub struct Wager<'info_w> {
     #[account(mut)]
     pub signer: Signer<'info_w>,
+    #[account(mut)]
+    pub treasury_auth: Signer<'info_w>,
     #[account(
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
@@ -25,10 +33,12 @@ pub struct Wager<'info_w> {
         init_if_needed,
         space = Bettor::INIT_SPACE,
         payer = signer,
-        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
+        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
     pub bettor: Account<'info_w, Bettor>,
+    #[account(mut)]
+    pub treasury: Account<'info_w, Treasury>,       // Should already be initialised
     pub system_program: Program<'info_w, System>,
 }
 
@@ -44,13 +54,32 @@ impl<'info_w> Wager<'info_w> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
 
-        if self.escrow.end_time < time {
+        // Requirements:
+        //  - Market should be in a betting state                               √
+        //  - Bettor should have sufficient balance to place the bet            √
+        //  - Market should contain the given facet                             √
+        //  - The token must be the same as that which instantiated the market  √
+        //  - Bettor should not have placed any underdog bets                   √
+        //  - Treasury authority should be the same as treasury_auth            √
+        //  - Treasury authority should be the same as on record                √
+        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
+        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
+        require!(self.market.token == params.authensus_token, BettingError::NotTheSameToken);
+        require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
+        require!(self.treasury_auth.key() == self.treasury.authority, BettingError::TreasuryAuthoritiesDontMatch);
+        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, BettingError::WrongTreasuryAuthority);
+
+        // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
+        if self.market.start_time + self.market.timeout < time {
 
             self.market.set_inner(
                 Market {
                     bump: self.market.bump,             // u8
                     token: self.market.token,           // Pubkey
                     facets: self.market.facets.clone(), // Vec<Facet>
+                    start_time: self.market.start_time, // i64
+                    timeout: self.market.timeout,       // i64
                     state: MarketState::Voting,         // MarketState
                     round: self.market.round,           // u16
                 }
@@ -58,12 +87,6 @@ impl<'info_w> Wager<'info_w> {
 
             return Ok(())
         }
-
-        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
-        require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
 
         self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
@@ -78,7 +101,7 @@ impl<'info_w> Wager<'info_w> {
             self.bettor.set_inner(
                 Bettor {
                     bump: bumps.bettor,             // u8
-                    pk: params.address,             // Pubkey
+                    pk: self.signer.key(),          // Pubkey
                     market: params.authensus_token, // Pubkey
                     facet: params.facet.clone(),    // Facet
                     tot_for: amount_for,            // u64
@@ -102,8 +125,8 @@ impl<'info_w> Wager<'info_w> {
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&params.address) {
-            bettors_clone.push(params.address);
+        if !bettors_clone.contains(&self.signer.key()) {
+            bettors_clone.push(self.signer.key());
         }
 
         self.escrow.set_inner(
@@ -113,8 +136,6 @@ impl<'info_w> Wager<'info_w> {
                 market: self.escrow.market,                             // Pubkey
                 facet: self.escrow.facet.clone(),                       // Facet
                 bettors: Some(bettors_clone.clone()),                   // Option<Vec<Pubkey>>
-                start_time: self.escrow.start_time,                     // i64
-                end_time: self.escrow.end_time,                         // i64
                 tot_for: self.escrow.tot_for + amount_for,              // u64
                 tot_against: self.escrow.tot_against + amount_against,  // u64
                 tot_underdog: self.escrow.tot_underdog,                 // u64
@@ -134,13 +155,30 @@ impl<'info_w> Wager<'info_w> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
 
-        if self.escrow.end_time < time {
+        // Requirements:
+        //  - Market should be in a betting state                                           √
+        //  - Bettor should have sufficient balance to place the bet                        √
+        //  - Market should contain the given facet                                         √
+        //  - The token must be the same as that which instantiated the market              √
+        //  - At least some normal bets have already been placed                            √
+        //  - No other bets should have been placed by this bettor already in this market   √
+        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
+        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
+        require!(self.market.token == params.authensus_token, BettingError::NotTheSameToken);
+        require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
+        require!(self.bettor.tot_for + self.bettor.tot_against == 0, BettingError::UnderdogWithOtherBet);
+
+        // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
+        if self.market.start_time + self.market.timeout < time {
 
             self.market.set_inner(
                 Market {
                     bump: self.market.bump,             // u8
                     token: self.market.token,           // Pubkey
                     facets: self.market.facets.clone(), // Vec<Facet>
+                    start_time: self.market.start_time, // i64
+                    timeout: self.market.timeout,       // i64
                     state: MarketState::Voting,         // MarketState
                     round: self.market.round,           // u16
                 }
@@ -149,25 +187,18 @@ impl<'info_w> Wager<'info_w> {
             return Ok(())
         }
 
-        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
-        require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
-        require!(self.bettor.tot_for > 0 || self.bettor.tot_against > 0, BettingError::UnderdogWithOtherBet);
-
         self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    bump: bumps.bettor,         // u8
-                    pk: params.address,                // Pubkey
-                    market: params.authensus_token,    // Pubkey
-                    facet: params.facet.clone(),                      // Facet
-                    tot_for: 0_u64,             // u64
-                    tot_against: 0_u64,         // u64
-                    tot_underdog: amount,       // u64
+                    bump: bumps.bettor,             // u8
+                    pk: self.signer.key(),          // Pubkey
+                    market: params.authensus_token, // Pubkey
+                    facet: params.facet.clone(),    // Facet
+                    tot_for: 0_u64,                 // u64
+                    tot_against: 0_u64,             // u64
+                    tot_underdog: amount,           // u64
                 }
             );
         } else {
@@ -186,9 +217,9 @@ impl<'info_w> Wager<'info_w> {
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&params.address) {
+        if !bettors_clone.contains(&self.signer.key()) {
 
-            bettors_clone.push(params.address);
+            bettors_clone.push(self.signer.key());
 
             self.escrow.set_inner(
                 Escrow {
@@ -197,8 +228,6 @@ impl<'info_w> Wager<'info_w> {
                     market: self.escrow.market,                         // Pubkey
                     facet: self.escrow.facet.clone(),                   // Facet
                     bettors: Some(bettors_clone.clone()),               // Option<Vec<Pubkey>>
-                    start_time: self.escrow.start_time,                 // i64
-                    end_time: self.escrow.end_time,                     // i64
                     tot_for: self.escrow.tot_for,                       // u64
                     tot_against: self.escrow.tot_against,               // u64
                     tot_underdog: self.escrow.tot_underdog + amount,    // u64
@@ -214,7 +243,7 @@ impl<'info_w> Wager<'info_w> {
 
         let accounts = Transfer {
             from,
-            to: self.escrow.to_account_info()
+            to: self.treasury_auth.to_account_info(),
         };
 
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);

@@ -47,8 +47,6 @@ impl<'info_i> Initialise<'info_i> {
             Treasury { 
                 bump: bumps.treasury,           //u8
                 authority: self.signer.key(),   // Pubkey
-                balance: 0_u64,                 // u64
-                voting_tokens: 0_u64,           // u64
             }
         );
 

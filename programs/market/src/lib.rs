@@ -22,12 +22,14 @@ pub mod parimutuel_market {
         ctx: Context<InitialiseMarket>,
         authensus_token: Pubkey,
         facets: Vec<Facet>,
+        timeout: i64,
     ) -> Result<()> {
 
         ctx.accounts.init_market(
             &ctx.bumps,
             authensus_token,
-            facets
+            facets,
+            timeout,
         )
 
     }
@@ -37,18 +39,16 @@ pub mod parimutuel_market {
         params: MarketParams,
         amount: u64,
         direction: bool,
-        timeout: i64,
     ) -> Result<()> {
 
         ctx.accounts.start(
             &ctx.bumps,
             &params,
-            timeout,
         )?;
 
         ctx.accounts.first_bet(
             &ctx.bumps,
-            params.address,
+            &params,
             amount,
             direction
         )
@@ -103,21 +103,17 @@ pub mod parimutuel_market {
 
     pub fn voter_results(
         ctx: Context<VoterResult>,
-        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_sol_to_voters(params.address)
+        ctx.accounts.distribute_sol_to_voter()
 
     }
 
     pub fn wager_results(
         ctx: Context<WagerResult>,
-        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_tokens_to_bettors_and_assign_markets(
-            &params,
-        )
+        ctx.accounts.distribute_tokens_to_bettor_and_assign_markets()
 
     }
 

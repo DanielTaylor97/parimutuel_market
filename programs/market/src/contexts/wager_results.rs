@@ -33,7 +33,7 @@ pub struct WagerResult<'info_wr> {
     )]
     pub escrow: Account<'info_wr, Escrow>,
     #[account(
-        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
+        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
     pub bettor: Account<'info_wr, Bettor>,
@@ -60,19 +60,15 @@ pub struct WagerResult<'info_wr> {
 
 impl<'info_wr> WagerResult<'info_wr> {
 
-    pub fn distribute_tokens_to_bettors_and_assign_markets(
+    pub fn distribute_tokens_to_bettor_and_assign_markets(
         &mut self,
-        params: &MarketParams,
     ) -> Result<()> {
 
         // Requirements:
         //  - Voting is finished
         //  - Given address is a bettor
-        //  - Signer is the bettor
         require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
-        require!(self.escrow.bettors.as_ref().unwrap().contains(&params.address), ResultsError::NotABettor);
-        require!(self.signer.key == &params.address, ResultsError::SignerNotPK);
-        // require!(self.escrow.total_underdog == 0, ResultsError::UnderdogBetsNotResolved);
+        require!(self.escrow.bettors.as_ref().unwrap().contains(&self.signer.key()), ResultsError::NotABettor);
 
         // Change the market state if necessary
         if self.market.state != MarketState::Consolidating {
@@ -81,7 +77,9 @@ impl<'info_wr> WagerResult<'info_wr> {
                     bump: self.market.bump,             // u8
                     token: self.market.token,           // Pubkey
                     facets: self.market.facets.clone(), // Vec<Facet>
-                    state: MarketState::Consolidating,       // MarketState
+                    start_time: self.market.start_time, // i64
+                    timeout: self.market.timeout,       // i64
+                    state: MarketState::Consolidating,  // MarketState
                     round: self.market.round,           // u16
                 }
             );

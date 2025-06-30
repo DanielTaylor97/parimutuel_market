@@ -42,11 +42,19 @@ pub mod treasury_program {
 
     }
 
-    pub fn get_balance(
+    pub fn get_sol_balance(
         ctx: Context<Transact>,
     ) -> Result<u64> {
 
-        ctx.accounts.get_balance()
+        ctx.accounts.get_sol_balance()
+
+    }
+
+    pub fn get_voting_token_balance(
+        ctx: Context<Transact>,
+    ) -> Result<u64> {
+
+        ctx.accounts.get_voting_token_balance()
 
     }
 

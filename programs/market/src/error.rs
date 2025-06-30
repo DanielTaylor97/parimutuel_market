@@ -1,6 +1,20 @@
 use anchor_lang::error_code;
 
 #[error_code]
+pub enum InitError {
+
+    #[msg("No facets have  been provided for the market to be initialised")]
+    NoFacetsProvided,
+
+    #[msg("The betting timeout is larger than the maximum allowed (2 weeks)")]
+    TimeoutTooLarge,
+
+    #[msg("The betting timeout is smaller than the minimum allowed (1 day)")]
+    TimeoutTooSmall,
+
+}
+
+#[error_code]
 pub enum FacetError {
 
     #[msg("The selected facet is not present in the given market")]
@@ -22,14 +36,20 @@ pub enum MarketError {
 #[error_code]
 pub enum BettingError {
 
+    #[msg("You have tried to start an ongoing market")]
+    StartingWithBetsInPlace,
+
+    #[msg("The bettor needs to be the same person who signs the transaction")]
+    SignerDifferentFromBettor,
+
     #[msg("Not enough funds to place the bet")]
     InsufficientFunds,
 
     #[msg("The market is not in the betting state right now")]
     MarketNotInBettingState,
 
-    #[msg("The betting timeout is larger than the maximum allowed (2 weeks)")]
-    TimeoutTooLarge,
+    #[msg("The token address provided does not correspond to the market")]
+    NotTheSameToken,
 
     #[msg("There need to be standard wagers placed before an underdog bet can be placed")]
     UnderdogBetTooEarly,
@@ -39,6 +59,12 @@ pub enum BettingError {
 
     #[msg("Cannot place another bet when underdog bet is in place")]
     BetWithUnderdogBet,
+
+    #[msg("The authority of the supplied treasury is not the authority provided")]
+    TreasuryAuthoritiesDontMatch,
+
+    #[msg("This is not the expected treasury authority")]
+    WrongTreasuryAuthority,
 
 }
 
@@ -53,6 +79,15 @@ pub enum VotingError {
 
     #[msg("Provided ATA does not match the mint and signer")]
     IncorrectATA,
+
+    #[msg("Provided ATA is not for the treasury")]
+    IncorrectTreasuryATA,
+
+    #[msg("Cannot vote on a market in which you have already placed bets")]
+    CannotVoteWithBets,
+
+    #[msg("The token address provided does not correspond to the market")]
+    NotTheSameToken,
 
     #[msg("Only one vote allowed per market")]
     AlreadyVoted,

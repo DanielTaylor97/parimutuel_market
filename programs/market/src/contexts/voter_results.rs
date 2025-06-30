@@ -38,7 +38,7 @@ pub struct VoterResult<'info_vr> {
     )]
     pub poll: Account<'info_vr, Poll>,
     #[account(
-        seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), params.address.as_ref()],
+        seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
     pub voter: Account<'info_vr, Voter>,
@@ -58,13 +58,12 @@ pub struct VoterResult<'info_vr> {
 
 impl<'info_vr> VoterResult<'info_vr> {
 
-    pub fn distribute_sol_to_voters(
+    pub fn distribute_sol_to_voter(
         &mut self,
-        address: Pubkey,
     ) -> Result<()> {
 
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
-        require!(self.poll.voters.clone().unwrap().contains(&address), ResultsError::NotAVoter);
+        require!(self.poll.voters.clone().unwrap().contains(&self.signer.key()), ResultsError::NotAVoter);
 
         if self.poll.total_for == self.poll.total_against {
             return self.voting_tie();

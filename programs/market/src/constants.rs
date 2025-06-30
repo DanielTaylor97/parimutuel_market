@@ -1,6 +1,8 @@
 // WAGERS
-pub const MAX_ALLOWED_TIMEOUT: i64 = 14*24*60*60*1_000;   // 2 weeks (ms)
+pub const MAX_ALLOWED_TIMEOUT: i64 = 14*24*60*60*1_000; // 2 weeks (ms)
+pub const MIN_ALLOWED_TIMEOUT: i64 = 24*60*60*1_000;    // 1 day (ms)
 pub const MAX_WAGERS: u16 = 10_000;
+pub const TREASURY_AUTHORITY: &str = "treasuryauthpubkey";
 
 // VOTING
 pub const MAX_VOTES: u16 = 1_000;                                                           // Max number of votes per voter

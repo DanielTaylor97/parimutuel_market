@@ -37,9 +37,19 @@ impl<'info_t> Transact<'info_t> {
         amount: u64,
     ) -> Result<()> {
 
+        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
+        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
+             &self.signer.key(),
+             &mint_pk,
+             &mint_program_pk,
+        );
+
         // Requirements:
-        //  - signer should be the treasury authority   √
+        //  - Signer should be the treasury authority                               √
+        //  - voting_token_account should be derivable as signer voting token ATA
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
+        require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
 
         // Make deposit here
         self.transfer_sol(
@@ -47,15 +57,6 @@ impl<'info_t> Transact<'info_t> {
             self.treasury.to_account_info(),
             amount,
         )?;
-
-        self.treasury.set_inner(
-            Treasury{
-                bump: self.treasury.bump,                   // u8
-                authority: self.treasury.authority,         // Pubkey
-                balance: self.treasury.balance + amount,    // u64
-                voting_tokens: self.treasury.voting_tokens, // u64
-            }
-        );
         
         Ok(())
 
@@ -76,23 +77,20 @@ impl<'info_t> Transact<'info_t> {
             self.coparty.to_account_info(),
             amount,
         )?;
-
-        self.treasury.set_inner(
-            Treasury{
-                bump: self.treasury.bump,                   // u8
-                authority: self.treasury.authority,         // Pubkey
-                balance: self.treasury.balance - amount,    // u64
-                voting_tokens: self.treasury.voting_tokens, // u64
-            }
-        );
         
         Ok(())
 
     }
     
-    pub fn get_balance(&mut self) -> Result<u64> {
+    pub fn get_sol_balance(&mut self) -> Result<u64> {
         
-        Ok(self.treasury.balance)
+        Ok(self.treasury.to_account_info().lamports())
+
+    }
+    
+    pub fn get_voting_token_balance(&mut self) -> Result<u64> {
+        
+        Ok(self.voting_token_account.amount)
 
     }
 
@@ -111,44 +109,6 @@ impl<'info_t> Transact<'info_t> {
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
 
         transfer(cpi_ctx, amount)
-
-    }
-
-    pub fn receive_voting_tokens(
-        &mut self,
-        amount: u64,
-    ) -> Result<()> {
-
-        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
-        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
-
-        // ATA of the treasury
-        let ata: Pubkey = get_associated_token_address_with_program_id(
-            &self.signer.key(),
-            &mint_pk,
-            &mint_program_pk,
-        );
-
-        let token_balance: u64 = self.voting_token_account.amount;
-
-        // Requirements:
-        //  - signer should be the treasury authority                                                   √
-        //  - voting token account should be the same as the one derived                                √
-        //  - ata token balance should be greater than the current treasury balance by exactly `amount` √
-        require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
-        require!(self.voting_token_account.key() == ata, TransactionError::WrongATA);
-        require!(token_balance == self.treasury.voting_tokens + amount, TransactionError::BalancesDisagree);
-
-        self.treasury.set_inner(
-            Treasury {
-                bump: self.treasury.bump,                               // u8
-                authority: self.treasury.authority,                     // Pubkey
-                balance: self.treasury.balance,                         // u64
-                voting_tokens: self.treasury.voting_tokens + amount,    // u64
-            }
-        );
-        
-        Ok(())
 
     }
 
