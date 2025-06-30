@@ -30,10 +30,10 @@ impl<'info_i> InitialiseMarket<'info_i> {
         timeout: i64,
     ) -> Result<()> {
         
-        // Requirements:
-        //  - At least one facet    √
-        //  - Timeout not too large √
-        //  - Timeout not too small √
+        // Requirements:            |   Implemented:
+        //  - At least one facet    |       √
+        //  - Timeout not too large |       √
+        //  - Timeout not too small |       √
         require!(facets.len() >= 1, InitError::NoFacetsProvided);
         require!(timeout <= MAX_ALLOWED_TIMEOUT, InitError::TimeoutTooLarge);
         require!(timeout >= MIN_ALLOWED_TIMEOUT, InitError::TimeoutTooSmall);

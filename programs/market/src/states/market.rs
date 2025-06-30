@@ -33,7 +33,7 @@ pub enum Facet {
     Truthfulness,
     Originality,
     Authenticity,
-    // TBC
+    // TODO: Finish this
 }
 
 impl ToString for Facet {

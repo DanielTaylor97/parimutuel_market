@@ -26,10 +26,46 @@ pub enum FacetError {
 }
 
 #[error_code]
+pub enum TreasuryError {
+
+    #[msg("The authority of the supplied treasury is not the authority provided")]
+    TreasuryAuthoritiesDontMatch,
+
+    #[msg("This is not the expected treasury authority")]
+    WrongTreasuryAuthority,
+
+    #[msg("The account supplied is not for the Treasury Program")]
+    NotTheRightTreasuryProgramPK,
+
+}
+
+#[error_code]
+pub enum MintError {
+
+    #[msg("This is not the expected Voting Tokens Mint")]
+    NotTheRightMintPK,
+
+    #[msg("The account supplied is not for the Voting Tokens Program")]
+    NotTheRightMintProgramPK,
+
+}
+
+#[error_code]
 pub enum MarketError {
 
     #[msg("The poll/escrow must be for the same market")]
     NotTheSameMarket,
+
+    #[msg("The market is in the wrong state")]
+    MarketInWrongState,
+
+}
+
+#[error_code]
+pub enum TokenError {
+
+    #[msg("The token address provided does not correspond to the market")]
+    NotTheSameToken,
 
 }
 
@@ -48,9 +84,6 @@ pub enum BettingError {
     #[msg("The market is not in the betting state right now")]
     MarketNotInBettingState,
 
-    #[msg("The token address provided does not correspond to the market")]
-    NotTheSameToken,
-
     #[msg("There need to be standard wagers placed before an underdog bet can be placed")]
     UnderdogBetTooEarly,
 
@@ -60,11 +93,8 @@ pub enum BettingError {
     #[msg("Cannot place another bet when underdog bet is in place")]
     BetWithUnderdogBet,
 
-    #[msg("The authority of the supplied treasury is not the authority provided")]
-    TreasuryAuthoritiesDontMatch,
-
-    #[msg("This is not the expected treasury authority")]
-    WrongTreasuryAuthority,
+    #[msg("Too many bettors in the market")]
+    TooManyBettors,
 
 }
 
@@ -86,9 +116,6 @@ pub enum VotingError {
     #[msg("Cannot vote on a market in which you have already placed bets")]
     CannotVoteWithBets,
 
-    #[msg("The token address provided does not correspond to the market")]
-    NotTheSameToken,
-
     #[msg("Only one vote allowed per market")]
     AlreadyVoted,
 
@@ -100,6 +127,12 @@ pub enum VotingError {
 
     #[msg("The mint provided is not the expected mint")]
     IncorrectMint,
+
+    #[msg("Voting amount too low")]
+    AmountTooLow,
+
+    #[msg("Voting amount too high")]
+    AmountTooHigh,
 
 }
 
@@ -123,6 +156,18 @@ pub enum ResultsError {
 
     #[msg("The votes don't add up")]
     VotesDontAddUp,
+
+    #[msg("This bettor has already been reimbursed")]
+    BettorAlreadyConsolidated,
+
+    #[msg("This voter has already been reimbursed")]
+    VoterAlreadyConsolidated,
+
+    #[msg("Not all of the bets have been consolidated")]
+    NotAllBetsConsolidated,
+
+    #[msg("Not all of the votes have been consolidated")]
+    NotAllVotesConsolidated,
 
 }
 

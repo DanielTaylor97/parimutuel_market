@@ -103,17 +103,19 @@ pub mod parimutuel_market {
 
     pub fn voter_results(
         ctx: Context<VoterResult>,
+        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_sol_to_voter()
+        ctx.accounts.distribute_sol_to_voter(&params)
 
     }
 
     pub fn wager_results(
         ctx: Context<WagerResult>,
+        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_tokens_to_bettor_and_assign_markets()
+        ctx.accounts.assign_tokens_and_markets_to_bettor(&params)
 
     }
 

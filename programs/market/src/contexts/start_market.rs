@@ -7,7 +7,7 @@ use treasury::{
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
 use crate::constants::TREASURY_AUTHORITY;
-use crate::error::{BettingError, FacetError};
+use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -50,17 +50,17 @@ impl<'info_s> StartMarket<'info_s> {
         params: &MarketParams,
     ) -> Result<()> {
 
-        // Requirements:
-        //  - The given facet must exist in the market                          √
-        //  - The token must be the same as that which instantiated the market  √
-        //  - There should be no bottors and no bets in the escrow              √
-        //  - Treasury authority should be the same as treasury_auth            √
-        //  - Treasury authority should be the same as on record                √
+        // Requirements:                                                        |   Implemented:
+        //  - The given facet must exist in the market                          |       √
+        //  - The token must be the same as that which instantiated the market  |       √
+        //  - There should be no bottors and no bets in the escrow              |       √
+        //  - Treasury authority should be the same as treasury_auth            |       √
+        //  - Treasury authority should be the same as on record                |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
-        require!(self.market.token == params.authensus_token, BettingError::NotTheSameToken);
+        require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.escrow.bettors == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
-        require!(self.treasury_auth.key() == self.treasury.authority, BettingError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, BettingError::WrongTreasuryAuthority);
+        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
+        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
 
         let start_time = Clock::get()?.unix_timestamp;
 
@@ -71,6 +71,7 @@ impl<'info_s> StartMarket<'info_s> {
                 market: params.authensus_token, // Pubkey
                 facet: params.facet.clone(),    // Facet
                 bettors: None,                  // Option<Vec<Pubkey>>
+                bettors_consolidated: None,     // Option<Vec<Pubkey>>
                 tot_for: 0_u64,                 // u64
                 tot_against: 0_u64,             // u64
                 tot_underdog: 0_u64             // u64
@@ -101,21 +102,21 @@ impl<'info_s> StartMarket<'info_s> {
         direction: bool,
     ) -> Result<()> {
 
-        // Requirements:
-        //  - The given facet must exist in the market                          √
-        //  - The token must be the same as that which instantiated the market  √
-        //  - There should be no bottors and no bets in the escrow              √
-        //  - Initialiser should have sufficient funds to make the bet          √
-        //  - Market should now be in a betting state                           √
-        //  - Treasury authority should be the same as treasury_auth            √
-        //  - Treasury authority should be the same as on record                √
+        // Requirements:                                                        |   Implemented:
+        //  - The given facet must exist in the market                          |       √
+        //  - The token must be the same as that which instantiated the market  |       √
+        //  - There should be no bottors and no bets in the escrow              |       √
+        //  - Initialiser should have sufficient funds to make the bet          |       √
+        //  - Market should now be in a betting state                           |       √
+        //  - Treasury authority should be the same as treasury_auth            |       √
+        //  - Treasury authority should be the same as on record                |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
-        require!(self.market.token == params.authensus_token, BettingError::NotTheSameToken);
+        require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.escrow.bettors == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
         require!(self.initialiser.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.treasury_auth.key() == self.treasury.authority, BettingError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, BettingError::WrongTreasuryAuthority);
+        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
+        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
 
         self.receive_sol_start(self.signer.to_account_info(), amount)?;
 
@@ -133,6 +134,7 @@ impl<'info_s> StartMarket<'info_s> {
                 market: self.escrow.market,                     // Pubkey
                 facet: self.escrow.facet.clone(),               // Facet
                 bettors: Some(Vec::from([self.signer.key()])),  // Option<Vec<Pubkey>>
+                bettors_consolidated: None,                     // Option<Vec<Pubkey>>
                 tot_for,                                        // u64
                 tot_against,                                    // u64
                 tot_underdog: self.escrow.tot_underdog,         // u64

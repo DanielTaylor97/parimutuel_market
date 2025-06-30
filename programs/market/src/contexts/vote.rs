@@ -10,8 +10,8 @@ use treasury::{
     Treasury,
 };
 
-use crate::constants::{VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID, VOTE_THRESHOLD};
-use crate::error::{FacetError, VotingError};
+use crate::constants::{MAX_VOTE_AMOUNT, MIN_VOTE_AMOUNT, VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID, VOTE_THRESHOLD};
+use crate::error::{FacetError, MintError, TokenError, VotingError};
 use crate::states::{Escrow, Market, MarketParams, MarketState, Poll, Voter};
 
 #[derive(Accounts)]
@@ -71,7 +71,6 @@ impl<'info_v> Vote<'info_v> {
 
         let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
         let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
-        let treasury_authority: Pubkey = self.treasury.authority;
 
         let signer_ata: Pubkey = get_associated_token_address_with_program_id(
              &self.signer.key(),
@@ -79,32 +78,48 @@ impl<'info_v> Vote<'info_v> {
              &mint_program_pk,
         );
         let treasury_authority_ata: Pubkey = get_associated_token_address_with_program_id(
-            &treasury_authority,
+            &self.treasury.authority,
             &mint_pk,
             &mint_program_pk,
         );
 
-        // Requirements:
-        //  - The token must be the same as that which instantiated the market          √
-        //  - treasury_voting_token_account should be derivable from treasury authority √
-        //  - The betting round has finished                                            √
-        //  - Cannot have voted here already                                            √
-        //  - Voting threshold cannot have been reached yet                             √
-        //  - ATA needs to be correct                                                   √
-        //  - ATA must have sufficient tokens for this vote                             √
-        //  - Mint provided must be correct                                             √
-        //  - Voter cannot have placed any bets                                         √
-        //  - Market should contain the given facet                                     √
-        require!(self.market.token == params.authensus_token, VotingError::NotTheSameToken);
+        let wagers_count_condition: bool = match self.escrow.bettors.is_some() {
+            true => self.escrow.bettors.as_ref().unwrap().contains(&self.signer.key()),
+            false => false,
+        };
+
+        let voters_count_condition: bool = match self.poll.voters.is_some() {
+            true => self.poll.voters.as_ref().unwrap().contains(&self.signer.key()),
+            false => false,
+        };
+
+        // Requirements:                                                                |   Implemented:
+        //  - The token must be the same as that which instantiated the market          |       √
+        //  - treasury_voting_token_account should be derivable from treasury authority |       √
+        //  - The betting round has finished                                            |       √
+        //  - Cannot have voted here already                                            |       √
+        //  - Voting threshold cannot have been reached yet                             |       √
+        //  - ATA needs to be correct                                                   |       √
+        //  - ATA must have sufficient tokens for this vote                             |       √
+        //  - Vote amount must be higher than minimum                                   |       √
+        //  - Vote amount must be lower than maximum                                    |       √
+        //  - Mint provided must be correct                                             |       √
+        //  - Voter cannot have placed any bets                                         |       √
+        //  - Market should contain the given facet                                     |       √
+        //  - Mint PK needs to be correct                                               |       √
+        require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(treasury_authority_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
         require!(self.market.start_time + self.market.timeout < time, VotingError::NotVotingTime);
-        require!(!self.poll.voters.as_ref().unwrap().contains(&self.signer.key()), VotingError::AlreadyVoted);
-        require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::VotingClosed);    // Better to do time- or threshold-based?
+        require!(!voters_count_condition, VotingError::AlreadyVoted);
+        require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD.into(), VotingError::VotingClosed);    // Better to do time- or threshold-based?
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
         require!(self.voting_token_account.amount >= amount, VotingError::InsufficientVotingTokens);
+        require!(amount >= MIN_VOTE_AMOUNT, VotingError::AmountTooLow);
+        require!(amount <= MAX_VOTE_AMOUNT, VotingError::AmountTooHigh);
         require!(self.mint.key() == mint_pk, VotingError::IncorrectMint);
-        require!(!self.escrow.bettors.as_ref().unwrap().contains(&self.signer.key()), VotingError::CannotVoteWithBets);
+        require!(!wagers_count_condition, VotingError::CannotVoteWithBets);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
+        require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
 
         // If the market state is still set to Betting but the betting markets have passed the timeout, then change to Voting
         if self.market.state == MarketState::Betting && self.market.start_time + self.market.timeout < time {
@@ -125,23 +140,26 @@ impl<'info_v> Vote<'info_v> {
         self.receive_vote_token_into_treasury(self.voting_token_account.to_account_info(), amount)?;
 
         // Update poll + voter totals
-        let total_for: u64 = match direction {
-            true => amount,
+        // Amount of vote does not change number of votes in the poll, only redemption
+        // Everyone is marked as a single vote in the poll
+        let vote_for: u64 = match direction {
+            true => 1_u64,
             false => 0_u64
         };
         
-        let total_against: u64 = amount - total_for;
+        let vote_against: u64 = 1 - vote_for;
 
         // Initialise the poll if necessary
         if self.poll.total_for + self.poll.total_against == 0 {
             self.poll.set_inner(
                 Poll {
-                    bump: bumps.poll,                           // u8
-                    market: params.authensus_token,             // Pubkey
-                    facet: params.facet.clone(),                // Facet
-                    voters: Some(Vec::from([self.signer.key()])),  // Option<Vec<Pubkey>>
-                    total_for,                                  // u64
-                    total_against,                              // u64
+                    bump: bumps.poll,                               // u8
+                    market: params.authensus_token,                 // Pubkey
+                    facet: params.facet.clone(),                    // Facet
+                    voters: Some(Vec::from([self.signer.key()])),   // Option<Vec<Pubkey>>
+                    voters_consolidated: None,                      // Option<Vec<Pubkey>>
+                    total_for: vote_for,                            // u64
+                    total_against: vote_against,                    // u64
                 }
             );
         } else {
@@ -154,8 +172,9 @@ impl<'info_v> Vote<'info_v> {
                     market: self.poll.market,                               // Pubkey
                     facet: self.poll.facet.clone(),                         // Facet
                     voters: Some(voters.clone()),                           // Option<Vec<Pubkey>>
-                    total_for: self.poll.total_for + total_for,             // u64
-                    total_against: self.poll.total_against + total_against, // u64
+                    voters_consolidated: None,                              // Option<Vec<Pubkey>>
+                    total_for: self.poll.total_for + vote_for,              // u64
+                    total_against: self.poll.total_against + vote_against,  // u64
                 }
             );
         }

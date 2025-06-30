@@ -47,7 +47,7 @@ impl<'info_t> Transact<'info_t> {
 
         // Requirements:
         //  - Signer should be the treasury authority                               √
-        //  - voting_token_account should be derivable as signer voting token ATA
+        //  - voting_token_account should be derivable as signer voting token ATA   √
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
         require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
 
