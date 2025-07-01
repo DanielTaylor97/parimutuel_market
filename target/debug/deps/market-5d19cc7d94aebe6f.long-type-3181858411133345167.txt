@@ -1,1 +1,0 @@
-for<'a, 'b, 'c, 'info> fn(anchor_lang::context::CpiContext<'a, 'b, 'c, 'info, treasury::cpi::accounts::Transact<'info>>, u64) -> std::result::Result<(), anchor_lang::error::Error> {treasury::cpi::reimburse}
