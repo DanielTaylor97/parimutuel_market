@@ -101,6 +101,9 @@ pub enum BettingError {
 #[error_code]
 pub enum VotingError {
 
+    #[msg("You have tried to start an ongoing poll")]
+    StartingWithVotesInPlace,
+
     #[msg("It is not the voting period yet")]
     NotVotingTime,
 

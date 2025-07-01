@@ -20,11 +20,13 @@ pub struct Wager<'info_w> {
     #[account(mut)]
     pub signer: Signer<'info_w>,
     #[account(
+        mut,
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_w, Market>,
     #[account(
+        mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
@@ -67,7 +69,7 @@ impl<'info_w> Wager<'info_w> {
         //  - Bettor should not have placed any underdog bets                   |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
         //  - Treasury authority should be the same as on record                |       √
-        //  - Current number of wagers must be less than the max
+        //  - Current number of wagers must be less than the max                |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -80,17 +82,7 @@ impl<'info_w> Wager<'info_w> {
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
 
-            self.market.set_inner(
-                Market {
-                    bump: self.market.bump,             // u8
-                    token: self.market.token,           // Pubkey
-                    facets: self.market.facets.clone(), // Vec<Facet>
-                    start_time: self.market.start_time, // i64
-                    timeout: self.market.timeout,       // i64
-                    state: MarketState::Voting,         // MarketState
-                    round: self.market.round,           // u16
-                }
-            );
+            self.market.state = MarketState::Voting;
 
             return Ok(())
         }
@@ -117,38 +109,19 @@ impl<'info_w> Wager<'info_w> {
                 }
             );
         } else {
-            self.bettor.set_inner(
-                Bettor {
-                    bump: bumps.bettor,                                     // u8
-                    pk: self.bettor.pk,                                     // Pubkey
-                    market: self.bettor.market,                             // Pubkey
-                    facet: self.bettor.facet.clone(),                       // Facet
-                    tot_for: self.bettor.tot_for + amount_for,              // u64
-                    tot_against: self.bettor.tot_against + amount_against,  // u64
-                    tot_underdog: self.bettor.tot_underdog,                 // u64
-                }
-            );
+            self.bettor.tot_for += amount_for;
+            self.bettor.tot_against += amount_against;
         }
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
         if !bettors_clone.contains(&self.signer.key()) {
             bettors_clone.push(self.signer.key());
+            self.escrow.bettors = Some(bettors_clone.clone());
         }
 
-        self.escrow.set_inner(
-            Escrow {
-                bump: self.escrow.bump,                                 // u8
-                initialiser: self.escrow.initialiser,                   // Pubkey
-                market: self.escrow.market,                             // Pubkey
-                facet: self.escrow.facet.clone(),                       // Facet
-                bettors: Some(bettors_clone.clone()),                   // Option<Vec<Pubkey>>
-                bettors_consolidated: None,                             // u64
-                tot_for: self.escrow.tot_for + amount_for,              // u64
-                tot_against: self.escrow.tot_against + amount_against,  // u64
-                tot_underdog: self.escrow.tot_underdog,                 // u64
-            }
-        );
+        self.escrow.tot_for += amount_for;
+        self.escrow.tot_against += amount_against;
         
         Ok(())
 
@@ -180,17 +153,7 @@ impl<'info_w> Wager<'info_w> {
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
 
-            self.market.set_inner(
-                Market {
-                    bump: self.market.bump,             // u8
-                    token: self.market.token,           // Pubkey
-                    facets: self.market.facets.clone(), // Vec<Facet>
-                    start_time: self.market.start_time, // i64
-                    timeout: self.market.timeout,       // i64
-                    state: MarketState::Voting,         // MarketState
-                    round: self.market.round,           // u16
-                }
-            );
+            self.market.state = MarketState::Voting;
 
             return Ok(())
         }
@@ -210,39 +173,17 @@ impl<'info_w> Wager<'info_w> {
                 }
             );
         } else {
-            self.bettor.set_inner(
-                Bettor {
-                    bump: bumps.bettor,                                 // u8
-                    pk: self.bettor.pk,                                 // Pubkey
-                    market: self.bettor.market,                         // Pubkey
-                    facet: self.bettor.facet.clone(),                   // Facet
-                    tot_for: self.bettor.tot_for,                       // u64
-                    tot_against: self.bettor.tot_against,               // u64
-                    tot_underdog: self.bettor.tot_underdog + amount,    // u64
-                }
-            );
+            self.bettor.tot_underdog += amount;
         }
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
         if !bettors_clone.contains(&self.signer.key()) {
-
             bettors_clone.push(self.signer.key());
-
-            self.escrow.set_inner(
-                Escrow {
-                    bump: self.escrow.bump,                             // u8
-                    initialiser: self.escrow.initialiser,               // Pubkey
-                    market: self.escrow.market,                         // Pubkey
-                    facet: self.escrow.facet.clone(),                   // Facet
-                    bettors: Some(bettors_clone.clone()),               // Option<Vec<Pubkey>>
-                    bettors_consolidated: None,                         // Option<Vec<Pubkey>>
-                    tot_for: self.escrow.tot_for,                       // u64
-                    tot_against: self.escrow.tot_against,               // u64
-                    tot_underdog: self.escrow.tot_underdog + amount,    // u64
-                }
-            );
+            self.escrow.bettors = Some(bettors_clone.clone());
         }
+
+        self.escrow.tot_underdog += amount;
         
         Ok(())
 

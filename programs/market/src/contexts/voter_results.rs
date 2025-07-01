@@ -20,6 +20,7 @@ use voting_tokens::{
 use crate::constants::{TREASURY_AUTHORITY, TREASURY_PROGRAM_ID, VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID};
 use crate::error::{CpiError, FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Market, MarketParams, MarketState, Poll, Voter};
+use crate::utils::functions::calc_winnings_from_votes;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -34,11 +35,13 @@ pub struct VoterResult<'info_vr> {
     )]
     pub market: Account<'info_vr, Market>,
     #[account(
+        mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_vr, Poll>,
     #[account(
+        mut,
         seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
@@ -124,35 +127,17 @@ impl<'info_vr> VoterResult<'info_vr> {
 
         let direction: bool = self.poll.total_for > self.poll.total_against;
 
-        let winnings: u64 = self.calc_winnings(
+        let winnings: u64 = calc_winnings_from_votes(
             direction,
             self.voter.direction,
             self.voter.amount,
-        ).unwrap();
+        );
 
         if winnings == 0 {
             return Ok(())
         }
 
-        let cpi_accounts = Transact {
-            signer: self.treasury_auth.to_account_info(),                               // This needs to be the treasury authority
-            coparty: self.signer.to_account_info(),                                     // This needs to be the person receiving the reimbursement
-            treasury: self.treasury.to_account_info(),
-            voting_token_account: self.treasury_voting_token_account.to_account_info(),
-            associated_token_program: self.associated_token_program.to_account_info(),
-            system_program: self.system_program.to_account_info(),
-        };
-
-        let cpi_ctx = CpiContext::new(
-            self.treasury_program.to_account_info(),
-            cpi_accounts,
-        );
-
-        // Pay out winnings in SOL
-        reimburse(
-            cpi_ctx,
-            winnings,
-        )
+        self.reimburse_winnings(winnings)
 
     }
 
@@ -201,48 +186,44 @@ impl<'info_vr> VoterResult<'info_vr> {
 
     }
 
-    // Unit test this bitch
-    fn calc_winnings(
-        &self,
-        direction: bool,
-        voter_direction: bool,
-        amount: u64
-    ) -> Result<u64> {
-        match !(direction ^ voter_direction) {
-            true => Ok(amount),
-            false => Ok(0),
-        }
+    fn reimburse_winnings(
+        &mut self,
+        winnings: u64,
+    ) -> Result<()> {
+        let cpi_accounts = Transact {
+            signer: self.treasury_auth.to_account_info(),                               // This needs to be the treasury authority
+            coparty: self.signer.to_account_info(),                                     // This needs to be the person receiving the reimbursement
+            treasury: self.treasury.to_account_info(),
+            voting_token_account: self.treasury_voting_token_account.to_account_info(),
+            associated_token_program: self.associated_token_program.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(
+            self.treasury_program.to_account_info(),
+            cpi_accounts,
+        );
+
+        // Pay out winnings in SOL
+        reimburse(
+            cpi_ctx,
+            winnings,
+        )
     }
 
     fn add_to_consolidated(&mut self) -> Result<()> {
 
         if self.poll.voters_consolidated.is_some() {
+
             let mut consolidated_vec: Vec<Pubkey> = self.poll.voters_consolidated.clone().unwrap();
             consolidated_vec.push(self.signer.key());
+            
+            self.poll.voters_consolidated = Some(consolidated_vec.clone());
 
-            self.poll.set_inner(
-                Poll {
-                    bump: self.poll.bump,                                   // u8
-                    market: self.poll.market,                               // Pubkey
-                    facet: self.poll.facet.clone(),                         // Facet
-                    voters: self.poll.voters.clone(),                       // Option<Vec<Pubkey>>
-                    voters_consolidated: Some(consolidated_vec.clone()),    // Option<Vec<Pubkey>>
-                    total_for: self.poll.total_for,                         // u64
-                    total_against: self.poll.total_against,                 // u64
-                }
-            );
         } else {
-            self.poll.set_inner(
-                Poll {
-                    bump: self.poll.bump,                                       // u8
-                    market: self.poll.market,                                   // Pubkey
-                    facet: self.poll.facet.clone(),                             // Facet
-                    voters: self.poll.voters.clone(),                           // Option<Vec<Pubkey>>
-                    voters_consolidated: Some(Vec::from([self.signer.key()])),  // Option<Vec<Pubkey>>
-                    total_for: self.poll.total_for,                             // u64
-                    total_against: self.poll.total_against,                     // u64
-                }
-            );
+            
+            self.poll.voters_consolidated = Some(Vec::from([self.signer.key()]));
+
         }
 
         Ok(())

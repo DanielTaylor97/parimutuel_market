@@ -5,9 +5,9 @@ use treasury::{
     Treasury,
 };
 
-use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
+use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 use crate::constants::TREASURY_AUTHORITY;
-use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
+use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError, VotingError};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -17,6 +17,7 @@ pub struct StartMarket<'info_s> {
     #[account(mut)]
     pub treasury_auth: Signer<'info_s>,
     #[account(
+        mut,
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
@@ -29,6 +30,14 @@ pub struct StartMarket<'info_s> {
         bump,
     )]
     pub escrow: Account<'info_s, Escrow>,
+    #[account(
+        init_if_needed,
+        space = Poll::INIT_SPACE,
+        payer = signer,
+        seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
+        bump,
+    )]
+    pub poll: Account<'info_s, Poll>,
     #[account(
         init_if_needed,
         space = Bettor::INIT_SPACE,
@@ -53,12 +62,16 @@ impl<'info_s> StartMarket<'info_s> {
         // Requirements:                                                        |   Implemented:
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
-        //  - There should be no bottors and no bets in the escrow              |       √
+        //  - Market must either be in an initialised state or inactive         |       √
+        //  - There should be no bettors and no bets in the escrow              |       √
+        //  - There should be no voters and no votes in the poll                |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
         //  - Treasury authority should be the same as on record                |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
-        require!(self.escrow.bettors == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
+        require!(self.market.state == MarketState::Initialised || self.market.state == MarketState::Inactive, MarketError::MarketInWrongState);
+        require!(self.escrow.bettors == None && self.escrow.bettors_consolidated == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
+        require!(self.poll.voters == None && self.poll.voters_consolidated == None && self.poll.total_for + self.poll.total_against == 0, VotingError::StartingWithVotesInPlace);
         require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
         require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
 
@@ -78,17 +91,21 @@ impl<'info_s> StartMarket<'info_s> {
             }
         );
 
-        self.market.set_inner(
-            Market {
-                bump: self.market.bump,             // u8
-                token: self.market.token,           // Pubkey
-                facets: self.market.facets.clone(), // Vec<Facet>
-                start_time,                         // i64
-                timeout: self.market.timeout,       // i64
-                state: MarketState::Betting,        // MarketState
-                round: self.market.round + 1,       // u16
+        self.poll.set_inner(
+            Poll {
+                bump: bumps.poll,               // u8
+                market: params.authensus_token, // Pubkey
+                facet: params.facet.clone(),    // Facet
+                voters: None,                   // Option<Vec<Pubkey>>
+                voters_consolidated: None,      // Option<Vec<Pubkey>>
+                total_for: 0_u64,               // u64
+                total_against: 0_u64,           // u64
             }
         );
+
+        self.market.start_time = start_time;
+        self.market.state = MarketState::Betting;
+        self.market.round += 1;
 
         Ok(())
         
@@ -127,19 +144,9 @@ impl<'info_s> StartMarket<'info_s> {
         
         let tot_against = amount - tot_for;
 
-        self.escrow.set_inner(
-            Escrow {
-                bump: self.escrow.bump,                         // u8
-                initialiser: self.escrow.initialiser,           // Pubkey
-                market: self.escrow.market,                     // Pubkey
-                facet: self.escrow.facet.clone(),               // Facet
-                bettors: Some(Vec::from([self.signer.key()])),  // Option<Vec<Pubkey>>
-                bettors_consolidated: None,                     // Option<Vec<Pubkey>>
-                tot_for,                                        // u64
-                tot_against,                                    // u64
-                tot_underdog: self.escrow.tot_underdog,         // u64
-            }
-        );
+        self.escrow.bettors = Some(Vec::from([self.signer.key()]));
+        self.escrow.tot_for = tot_for;
+        self.escrow.tot_against = tot_against;
 
         self.initialiser.set_inner(
             Bettor {

@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 use crate::states::{Escrow, Market, MarketParams, MarketState, Poll};
 use crate::constants::TREASURY_AUTHORITY;
 use crate::error::{FacetError, MarketError, ResultsError, TreasuryError};
+use crate::utils::functions::vec_eq;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -10,16 +11,19 @@ pub struct CallMarket<'info_c> {
     #[account(mut)]
     pub admin: Signer<'info_c>,
     #[account(
+        mut,
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_c, Market>,
     #[account(
+        mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_c, Poll>,
     #[account(
+        mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
@@ -37,8 +41,8 @@ impl<'info_c> CallMarket<'info_c> {
             return Err(anchor_lang::error!(ResultsError::NotAllBetsConsolidated))
         }
 
-        let bet_consolidation: bool = self.vec_eq(self.escrow.bettors.clone().as_mut().unwrap(), self.escrow.bettors_consolidated.clone().as_mut().unwrap());
-        let vote_consolidation: bool = self.vec_eq(self.poll.voters.clone().as_mut().unwrap(), self.poll.voters_consolidated.clone().as_mut().unwrap());
+        let bet_consolidation: bool = vec_eq(self.escrow.bettors.clone().as_mut().unwrap(), self.escrow.bettors_consolidated.clone().as_mut().unwrap());
+        let vote_consolidation: bool = vec_eq(self.poll.voters.clone().as_mut().unwrap(), self.poll.voters_consolidated.clone().as_mut().unwrap());
 
         // Requirements:                                                        |   Implemented:
         //  - Market State should be Consolidating                              |       √
@@ -56,58 +60,23 @@ impl<'info_c> CallMarket<'info_c> {
         require!(vote_consolidation, ResultsError::NotAllVotesConsolidated);
         require!(self.admin.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
 
-        self.market.set_inner(
-            Market {
-                bump: self.market.bump,             // u8
-                token: self.market.token,           // Pubkey
-                facets: self.market.facets.clone(), // Vec<Facet>
-                start_time: self.market.start_time, // i64
-                timeout: self.market.timeout,       // i64
-                state: MarketState::Inactive,       // MarketState
-                round: self.market.round,           // u16
-            }
-        );
+        // Set market inactive
+        self.market.state = MarketState::Inactive;
 
-        self.escrow.set_inner(
-            Escrow{
-                bump: self.escrow.bump,                 // u8
-                initialiser: self.escrow.initialiser,   // Pubkey
-                market: self.escrow.market,             // Pubkey
-                facet: self.escrow.facet.clone(),       // Facet
-                bettors: None,                          // Option<Vec<Pubkey>>
-                bettors_consolidated: None,             // Option<Vec<Pubkey>>
-                tot_for: 0_u64,                         // u64
-                tot_against: 0_u64,                     // u64
-                tot_underdog: 0_u64,                    // u64
-            }
-        );
+        // Empty escrow
+        self.escrow.bettors = None;
+        self.escrow.bettors_consolidated = None;
+        self.escrow.tot_for = 0_u64;
+        self.escrow.tot_against = 0_u64;
+        self.escrow.tot_underdog = 0_u64;
 
-        self.poll.set_inner(
-            Poll{
-                bump: self.poll.bump,           // u8
-                market: self.poll.market,       // Pubkey
-                facet: self.poll.facet.clone(), // Facet
-                voters: None,                   // Option<Vec<Pubkey>>
-                voters_consolidated: None,      // Option<Vec<Pubkey>>
-                total_for: 0_u64,               // u64
-                total_against: 0_u64,           // u64
-            }
-        );
+        // Empty poll
+        self.poll.voters = None;
+        self.poll.voters_consolidated = None;
+        self.poll.total_for = 0_u64;
+        self.poll.total_against = 0_u64;
 
         Ok(())
-    }
-
-    fn vec_eq(
-        &mut self,
-        v1: &mut Vec<Pubkey>,
-        v2: &mut Vec<Pubkey>,
-    ) -> bool {
-
-        v1.sort();
-        v2.sort();
-
-        v1 == v2
-
     }
 
 }

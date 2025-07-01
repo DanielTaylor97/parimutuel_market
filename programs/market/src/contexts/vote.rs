@@ -20,19 +20,19 @@ pub struct Vote<'info_v> {
     #[account(mut)]
     pub signer: Signer<'info_v>,
     #[account(
+        mut,
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_v, Market>,
     #[account(
+        mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_v, Escrow>,
     #[account(
-        init_if_needed,
-        space = Poll::INIT_SPACE,
-        payer = signer,
+        mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
@@ -123,17 +123,7 @@ impl<'info_v> Vote<'info_v> {
 
         // If the market state is still set to Betting but the betting markets have passed the timeout, then change to Voting
         if self.market.state == MarketState::Betting && self.market.start_time + self.market.timeout < time {
-            self.market.set_inner(
-                Market {
-                    bump: self.market.bump,             // u8
-                    token: self.market.token,           // Pubkey
-                    facets: self.market.facets.clone(), // Vec<Facet>
-                    start_time: self.market.start_time, // i64
-                    timeout: self.market.timeout,       // i64
-                    state: MarketState::Voting,         // MarketState
-                    round: self.market.round,           // u16
-                }
-            );
+            self.market.state = MarketState::Voting;
         }
 
         // Receive voting tokens from ATA
@@ -149,35 +139,13 @@ impl<'info_v> Vote<'info_v> {
         
         let vote_against: u64 = 1 - vote_for;
 
-        // Initialise the poll if necessary
-        if self.poll.total_for + self.poll.total_against == 0 {
-            self.poll.set_inner(
-                Poll {
-                    bump: bumps.poll,                               // u8
-                    market: params.authensus_token,                 // Pubkey
-                    facet: params.facet.clone(),                    // Facet
-                    voters: Some(Vec::from([self.signer.key()])),   // Option<Vec<Pubkey>>
-                    voters_consolidated: None,                      // Option<Vec<Pubkey>>
-                    total_for: vote_for,                            // u64
-                    total_against: vote_against,                    // u64
-                }
-            );
-        } else {
-            let voters: &mut Vec<Pubkey> = &mut self.poll.voters.clone().unwrap();
-            voters.push(self.signer.key());
-
-            self.poll.set_inner(
-                Poll {
-                    bump: self.poll.bump,                                   // u8
-                    market: self.poll.market,                               // Pubkey
-                    facet: self.poll.facet.clone(),                         // Facet
-                    voters: Some(voters.clone()),                           // Option<Vec<Pubkey>>
-                    voters_consolidated: None,                              // Option<Vec<Pubkey>>
-                    total_for: self.poll.total_for + vote_for,              // u64
-                    total_against: self.poll.total_against + vote_against,  // u64
-                }
-            );
-        }
+        // Update the poll
+        let voters: &mut Vec<Pubkey> = &mut self.poll.voters.clone().unwrap();
+        voters.push(self.signer.key());
+        
+        self.poll.voters = Some(voters.clone());
+        self.poll.total_for += vote_for;
+        self.poll.total_against += vote_against;
 
         // As per requirements above, voter cannot have already cast a vote; so this is de novo
         self.voter.set_inner(

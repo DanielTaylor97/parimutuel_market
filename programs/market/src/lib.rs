@@ -6,11 +6,13 @@ declare_id!("H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY");
 
 pub mod states;
 pub mod contexts;
+pub mod utils;
 pub mod error;
 pub mod constants;
 
 pub use states::*;
 pub use contexts::*;
+pub use utils::*;
 pub use error::*;
 pub use constants::*;
 
