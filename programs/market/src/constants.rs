@@ -17,4 +17,4 @@ pub const VOTING_TOKENS_MINT_ID: &str = "mintpubkey";                           
 
 // CONSOLIDATION
 pub const PERCENTAGE_WINNINGS_KEPT: u64 = 95;   // How much of the winnings pot is received by the winning bettors (%)
-pub const DIV_BUFFER: u64 = 1_000_000;          // Buffer for arithmetic with uints
+pub const DIV_BUFFER: u128 = 1_000_000_000;     // Buffer for arithmetic with uints
