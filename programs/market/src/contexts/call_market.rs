@@ -1,92 +1,80 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::VOTE_THRESHOLD;
-use crate::error::VotingError;
-use crate::states::{Bettor, Escrow, Facet, Market, MarketState, Poll, Voter};
+use crate::states::{Escrow, Market, MarketParams, MarketState, Poll};
+use crate::constants::TREASURY_AUTHORITY;
+use crate::error::{FacetError, MarketError, ResultsError, TreasuryError};
+use crate::utils::functions::vec_eq;
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet)]
+#[instruction(params: MarketParams)]
 pub struct CallMarket<'info_c> {
     #[account(mut)]
     pub admin: Signer<'info_c>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        mut,
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_c, Market>,
     #[account(
-        seeds = [b"poll", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        mut,
+        seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub poll: Account<'info_c, Poll>,
     #[account(
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        mut,
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_c, Escrow>,
 }
 
 impl<'info_c> CallMarket<'info_c> {
-    
-    pub async fn determine_result(
-        &mut self,
-        program_id: &Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
-    ) -> Result<bool> {
-
-        require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD, VotingError::NotVotingTime);   // Better to do time- or threshold-based?
-
-        let mut tot_for: u64 = 0_u64;
-        let mut tot_against: u64 = 0_u64;
-
-        let facet_str: String = facet.to_string();
-
-        let mut voter_key: Pubkey;
-        let mut bump: u8;
-        // let mut seeds: &[&[u8]];
-
-        for key in self.poll.voters.as_ref().unwrap().iter() {
-
-            let seeds: &[&[u8]; 4] = &[b"voter", authensus_token.as_ref(), facet_str.as_bytes(), key.as_ref()];
-            (voter_key, bump) = Pubkey::find_program_address(seeds, program_id);
-
-            //
-
-        }
-
-        Ok(true)
-
-    }
-
-    pub fn distribute_sol_to_voters(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn distribute_tokens_to_stakers(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn assign_voting_markets_to_new_stakers(
-        &mut self,
-        results: bool,
-    ) -> Result<()> {
-        Ok(())
-    }
 
     pub fn end(
         &mut self,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: &MarketParams,
     ) -> Result<()> {
 
-        // Set market inactive, set escrow counts and polls to zero if not already done
+        if self.escrow.bettors.is_none() || self.escrow.bettors_consolidated.is_none() || self.poll.voters.is_none() || self.poll.voters_consolidated.is_none() {
+            return Err(anchor_lang::error!(ResultsError::NotAllBetsConsolidated))
+        }
+
+        let bet_consolidation: bool = vec_eq(self.escrow.bettors.clone().as_mut().unwrap(), self.escrow.bettors_consolidated.clone().as_mut().unwrap());
+        let vote_consolidation: bool = vec_eq(self.poll.voters.clone().as_mut().unwrap(), self.poll.voters_consolidated.clone().as_mut().unwrap());
+
+        // Requirements:                                                        |   Implemented:
+        //  - Market State should be Consolidating                              |       √
+        //  - escrow and poll should have the same market, which is this market |       √
+        //  - escrow and poll should have the same facet                        |       √
+        //  - escrow/poll facet should be in the market facets vec              |       √
+        //  - SOL has been reimbursed as necessary                              |       √
+        //  - Tokens have been reimbursed as necessary                          |       √
+        //  - Admin should be the treasury authority                            |       √
+        require!(self.market.state == MarketState::Consolidating, MarketError::MarketInWrongState);
+        require!(self.market.key() == self.escrow.market && self.market.key() == self.poll.market && self.market.token == params.authensus_token, MarketError::NotTheSameMarket);
+        require!(self.escrow.facet == self.poll.facet && self.escrow.facet == params.facet, FacetError::NotTheSameFacet);
+        require!(self.market.facets.contains(&self.escrow.facet), FacetError::FacetNotInMarket);
+        require!(bet_consolidation, ResultsError::NotAllBetsConsolidated);
+        require!(vote_consolidation, ResultsError::NotAllVotesConsolidated);
+        require!(self.admin.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+
+        // Set market inactive
+        self.market.state = MarketState::Inactive;
+
+        // Empty escrow
+        self.escrow.bettors = None;
+        self.escrow.bettors_consolidated = None;
+        self.escrow.tot_for = 0_u64;
+        self.escrow.tot_against = 0_u64;
+        self.escrow.tot_underdog = 0_u64;
+
+        // Empty poll
+        self.poll.voters = None;
+        self.poll.voters_consolidated = None;
+        self.poll.total_for = 0_u64;
+        self.poll.total_against = 0_u64;
 
         Ok(())
     }

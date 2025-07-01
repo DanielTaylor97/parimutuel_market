@@ -1,216 +1,134 @@
+#![allow(unexpected_cfgs)]
+
 use anchor_lang::prelude::*;
 
 declare_id!("H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY");
 
 pub mod states;
 pub mod contexts;
+pub mod utils;
 pub mod error;
 pub mod constants;
 
-pub use states::Facet;
+pub use states::*;
 pub use contexts::*;
+pub use utils::*;
 pub use error::*;
 pub use constants::*;
 
 #[program]
-pub mod market {
+pub mod parimutuel_market {
     use super::*;
 
     pub fn initialise_market(
         ctx: Context<InitialiseMarket>,
         authensus_token: Pubkey,
         facets: Vec<Facet>,
+        timeout: i64,
     ) -> Result<()> {
 
         ctx.accounts.init_market(
             &ctx.bumps,
             authensus_token,
-            facets
+            facets,
+            timeout,
         )
-        // init_market(
-        //     &ctx
-        // )?;
-
-        // Ok(())
 
     }
 
     pub fn start_market(
         ctx: Context<StartMarket>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
-        timeout: i64,
     ) -> Result<()> {
 
         ctx.accounts.start(
             &ctx.bumps,
-            address,
-            authensus_token,
-            facet,
-            timeout,
-        );
+            &params,
+        )?;
 
         ctx.accounts.first_bet(
-            address,
+            &ctx.bumps,
+            &params,
             amount,
             direction
         )
-        // start(
-        //     &ctx,
-        //     authensus_token,
-        // )?;
-
-        // Ok(())
 
     }
 
     pub fn wager(
         ctx: Context<Wager>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
 
         ctx.accounts.place_wager(
-            address,
-            authensus_token,
-            facet,
+            &ctx.bumps,
+            &params,
             amount,
             direction,
         )
 
-        // add_wager(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        //     direction,
-        // )?;
-
-        // Ok(())
     }
 
     pub fn underdog_bet(
         ctx: Context<Wager>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
     ) -> Result<()> {
 
         ctx.accounts.underdog_bet(
-            address,
-            authensus_token,
-            facet,
+            &ctx.bumps,
+            &params,
             amount
         )
-        // add_underdog_bet(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        // )?;
-
-        // Ok(())
+        
     }
 
     pub fn vote(
         ctx: Context<Vote>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
 
         ctx.accounts.add_vote(
             &ctx.bumps,
-            address,
-            authensus_token,
-            facet,
+            &params,
             amount,
             direction
         )
-
-        // add_vote(
-        //     &ctx,
-        //     facet,
-        //     amount,
-        //     direction,
-        // )?;
-
-        // Ok(())
+        
     }
 
-    pub fn voting_results(
-        ctx: Context<VotingResult>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+    pub fn voter_results(
+        ctx: Context<VoterResult>,
+        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_sol_to_voters()
-
-        // Ok(())
+        ctx.accounts.distribute_sol_to_voter(&params)
 
     }
 
     pub fn wager_results(
         ctx: Context<WagerResult>,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
     ) -> Result<()> {
 
-        ctx.accounts.distribute_tokens_to_bettors(
-            address,
-            authensus_token,
-            facet,
-        );
-
-        ctx.accounts.assign_markets_to_new_voters(
-            address,
-            authensus_token,
-            facet,
-        )
-
-        // Ok(())
+        ctx.accounts.assign_tokens_and_markets_to_bettor(&params)
 
     }
 
     pub fn call_market(
         ctx: Context<CallMarket>,
-        authensus_token: Pubkey,
-        facet: Facet,
+        params: MarketParams,
     ) -> Result<()> {
 
-        // // Also has to calculate underdog bets
-        // let results = ctx.accounts.determine_result(
-        //     authensus_token,
-        //     facet
-        // )?;
-
-        // ctx.accounts.distribute_sol_to_voters(
-        //     results,
-        // )?;
-
-        // ctx.accounts.distribute_tokens_to_stakers(
-        //     results,
-        // )?;
-
-        // ctx.accounts.assign_voting_markets_to_new_stakers(
-        //     results,
-        // )?;
-
         ctx.accounts.end(
-            authensus_token,
-            facet,
+            &params,
         )
-
-        // Ok(())
 
     }
 }

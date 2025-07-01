@@ -1,33 +1,39 @@
 use anchor_lang::prelude::{borsh::{BorshSerialize, BorshDeserialize}, *};
 
 #[account]
+#[derive(InitSpace)]
 pub struct Market {
-    pub bump: u8,
-    pub token: Pubkey,
-    pub facets: Vec<Facet>,
-    pub state: MarketState,
-    pub round: u16,
+    pub bump: u8,           // Bump
+    pub token: Pubkey,      // Authensus token to which the market corresponds
+    #[max_len(8)]
+    pub facets: Vec<Facet>, // Vector of Facets around which wagers can be made and votes must be cast
+    pub start_time: i64,    // Time at which the most recent wagers markets started
+    pub timeout: i64,       // Total time for which the wagers markets will operate
+    pub state: MarketState, // Current state of the market
+    pub round: u16,         // Number of this round of the market
 }
 
-impl Space for Market {
-    // Discriminator (8) + bumps (8) + token (32) + facets(?) + state (?) + round (2)
-    const INIT_SPACE: usize = 8 + 1 + 32 + 2;   // INCOMPLETE
-}
-
-#[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum MarketState {
     Initialised,
     Inactive,
     Betting,
     Voting,
+    Consolidating,
 }
 
-#[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace)]
+pub struct MarketParams {
+    pub authensus_token: Pubkey,
+    pub facet: Facet,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum Facet {
     Truthfulness,
     Originality,
     Authenticity,
-    // TBC
+    // TODO: Finish this
 }
 
 impl ToString for Facet {

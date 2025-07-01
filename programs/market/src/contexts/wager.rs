@@ -3,21 +3,31 @@ use anchor_lang::{
     system_program::{transfer, Transfer}
 };
 
-use crate::states::{Bettor, Escrow, Facet, Market, MarketState};
-use crate::error::*;
+use treasury::{
+    self,
+    Treasury,
+};
+
+use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
+use crate::constants::{MAX_WAGERS, TREASURY_AUTHORITY};
+use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey, facet: Facet, address: Pubkey)]
+#[instruction(params: MarketParams)]
 pub struct Wager<'info_w> {
+    #[account(mut)]
+    pub treasury_auth: Signer<'info_w>,
     #[account(mut)]
     pub signer: Signer<'info_w>,
     #[account(
-        seeds = [b"market", authensus_token.as_ref()],
+        mut,
+        seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
     pub market: Account<'info_w, Market>,
     #[account(
-        seeds = [b"escrow", authensus_token.as_ref(), facet.to_string().as_bytes()],
+        mut,
+        seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
     pub escrow: Account<'info_w, Escrow>,
@@ -25,10 +35,12 @@ pub struct Wager<'info_w> {
         init_if_needed,
         space = Bettor::INIT_SPACE,
         payer = signer,
-        seeds = [b"bettor", authensus_token.as_ref(), facet.to_string().as_bytes(), address.as_ref()],
+        seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
     pub bettor: Account<'info_w, Bettor>,
+    #[account(mut)]
+    pub treasury: Account<'info_w, Treasury>,       // Should already be initialised
     pub system_program: Program<'info_w, System>,
 }
 
@@ -36,37 +48,46 @@ impl<'info_w> Wager<'info_w> {
 
     pub fn place_wager(
         &mut self,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        bumps: &WagerBumps,
+        params: &MarketParams,
         amount: u64,
         direction: bool,
     ) -> Result<()> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
 
-        if self.escrow.end_time < time {
+        let wagers_count_condition: bool = match self.escrow.bettors.is_some() {
+            true => self.escrow.bettors.as_ref().unwrap().len() < MAX_WAGERS.into(),
+            false => true,
+        };
 
-            self.market.set_inner(
-                Market {
-                    bump: self.market.bump,             // u8
-                    token: self.market.token,           // Pubkey
-                    facets: self.market.facets.clone(), // Vec<Facet>
-                    state: MarketState::Voting,         // MarketState
-                    round: self.market.round,           // u16
-                }
-            );
+        // Requirements:                                                        |   Implemented:
+        //  - Market should be in a betting state                               |       √
+        //  - Bettor should have sufficient balance to place the bet            |       √
+        //  - Market should contain the given facet                             |       √
+        //  - The token must be the same as that which instantiated the market  |       √
+        //  - Bettor should not have placed any underdog bets                   |       √
+        //  - Treasury authority should be the same as treasury_auth            |       √
+        //  - Treasury authority should be the same as on record                |       √
+        //  - Current number of wagers must be less than the max                |       √
+        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
+        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
+        require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
+        require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
+        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
+        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(wagers_count_condition, BettingError::TooManyBettors);
+
+        // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
+        if self.market.start_time + self.market.timeout < time {
+
+            self.market.state = MarketState::Voting;
 
             return Ok(())
         }
 
-        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&facet), FacetError::FacetNotInMarket);
-        require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
-
-        self.receive_sol_wager(self.signer.to_account_info(), amount);
+        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
         let amount_for: u64 = match direction {
             true => amount,
@@ -78,47 +99,29 @@ impl<'info_w> Wager<'info_w> {
         if self.bettor.tot_against == 0 && self.bettor.tot_against == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    pk: address,                    // Pubkey
-                    market: authensus_token,        // Pubkey
-                    facet,                          // Facet
+                    bump: bumps.bettor,             // u8
+                    pk: self.signer.key(),          // Pubkey
+                    market: params.authensus_token, // Pubkey
+                    facet: params.facet.clone(),    // Facet
                     tot_for: amount_for,            // u64
                     tot_against: amount_against,    // u64
                     tot_underdog: 0_u64             // u64
                 }
             );
         } else {
-            self.bettor.set_inner(
-                Bettor {
-                    pk: self.bettor.pk,                                     // Pubkey
-                    market: self.bettor.market,                             // Pubkey
-                    facet: self.bettor.facet.clone(),                       // Facet
-                    tot_for: self.bettor.tot_for + amount_for,              // u64
-                    tot_against: self.bettor.tot_against + amount_against,  // u64
-                    tot_underdog: self.bettor.tot_underdog,                 // u64
-                }
-            );
+            self.bettor.tot_for += amount_for;
+            self.bettor.tot_against += amount_against;
         }
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&address) {
-            bettors_clone.push(address);
+        if !bettors_clone.contains(&self.signer.key()) {
+            bettors_clone.push(self.signer.key());
+            self.escrow.bettors = Some(bettors_clone.clone());
         }
 
-        self.escrow.set_inner(
-            Escrow {
-                bump: self.escrow.bump,                                 // u8
-                initialiser: self.escrow.initialiser,                   // Pubkey
-                market: self.escrow.market,                             // Pubkey
-                facet: self.escrow.facet.clone(),                       // Facet
-                bettors: Some(bettors_clone.clone()),                   // Option<Vec<Pubkey>>
-                start_time: self.escrow.start_time,                     // i64
-                end_time: self.escrow.end_time,                         // i64
-                tot_for: self.escrow.tot_for + amount_for,              // u64
-                tot_against: self.escrow.tot_against + amount_against,  // u64
-                tot_underdog: self.escrow.tot_underdog,                 // u64
-            }
-        );
+        self.escrow.tot_for += amount_for;
+        self.escrow.tot_against += amount_against;
         
         Ok(())
 
@@ -126,83 +129,61 @@ impl<'info_w> Wager<'info_w> {
 
     pub fn underdog_bet(
         &mut self,
-        address: Pubkey,
-        authensus_token: Pubkey,
-        facet: Facet,
+        bumps: &WagerBumps,
+        params: &MarketParams,
         amount: u64,
     ) -> Result<()> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
 
-        if self.escrow.end_time < time {
+        // Requirements:                                                                    |   Implemented:
+        //  - Market should be in a betting state                                           |       √
+        //  - Bettor should have sufficient balance to place the bet                        |       √
+        //  - Market should contain the given facet                                         |       √
+        //  - The token must be the same as that which instantiated the market              |       √
+        //  - At least some normal bets have already been placed                            |       √
+        //  - No other bets should have been placed by this bettor already in this market   |       √
+        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
+        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
+        require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
+        require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
+        require!(self.bettor.tot_for + self.bettor.tot_against == 0, BettingError::UnderdogWithOtherBet);
 
-            self.market.set_inner(
-                Market {
-                    bump: self.market.bump,             // u8
-                    token: self.market.token,           // Pubkey
-                    facets: self.market.facets.clone(), // Vec<Facet>
-                    state: MarketState::Voting,         // MarketState
-                    round: self.market.round,           // u16
-                }
-            );
+        // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
+        if self.market.start_time + self.market.timeout < time {
+
+            self.market.state = MarketState::Voting;
 
             return Ok(())
         }
 
-        require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.escrow.end_time >= time, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
-        require!(self.market.facets.contains(&facet), FacetError::FacetNotInMarket);
-        require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
-        require!(self.bettor.tot_for > 0 || self.bettor.tot_against > 0, BettingError::UnderdogWithOtherBet);
-
-        self.receive_sol_wager(self.signer.to_account_info(), amount);
+        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    pk: address,                // Pubkey
-                    market: authensus_token,    // Pubkey
-                    facet,                      // Facet
-                    tot_for: 0_u64,             // u64
-                    tot_against: 0_u64,         // u64
-                    tot_underdog: amount,       // u64
+                    bump: bumps.bettor,             // u8
+                    pk: self.signer.key(),          // Pubkey
+                    market: params.authensus_token, // Pubkey
+                    facet: params.facet.clone(),    // Facet
+                    tot_for: 0_u64,                 // u64
+                    tot_against: 0_u64,             // u64
+                    tot_underdog: amount,           // u64
                 }
             );
         } else {
-            self.bettor.set_inner(
-                Bettor {
-                    pk: self.bettor.pk,                                 // Pubkey
-                    market: self.bettor.market,                         // Pubkey
-                    facet: self.bettor.facet.clone(),                   // Facet
-                    tot_for: self.bettor.tot_for,                       // u64
-                    tot_against: self.bettor.tot_against,               // u64
-                    tot_underdog: self.bettor.tot_underdog + amount,    // u64
-                }
-            );
+            self.bettor.tot_underdog += amount;
         }
 
         let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
 
-        if !bettors_clone.contains(&address) {
-
-            bettors_clone.push(address);
-
-            self.escrow.set_inner(
-                Escrow {
-                    bump: self.escrow.bump,                             // u8
-                    initialiser: self.escrow.initialiser,               // Pubkey
-                    market: self.escrow.market,                         // Pubkey
-                    facet: self.escrow.facet.clone(),                   // Facet
-                    bettors: Some(bettors_clone.clone()),               // Option<Vec<Pubkey>>
-                    start_time: self.escrow.start_time,                 // i64
-                    end_time: self.escrow.end_time,                     // i64
-                    tot_for: self.escrow.tot_for,                       // u64
-                    tot_against: self.escrow.tot_against,               // u64
-                    tot_underdog: self.escrow.tot_underdog + amount,    // u64
-                }
-            );
+        if !bettors_clone.contains(&self.signer.key()) {
+            bettors_clone.push(self.signer.key());
+            self.escrow.bettors = Some(bettors_clone.clone());
         }
+
+        self.escrow.tot_underdog += amount;
         
         Ok(())
 
@@ -212,7 +193,7 @@ impl<'info_w> Wager<'info_w> {
 
         let accounts = Transfer {
             from,
-            to: self.escrow.to_account_info()
+            to: self.treasury_auth.to_account_info(),
         };
 
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
