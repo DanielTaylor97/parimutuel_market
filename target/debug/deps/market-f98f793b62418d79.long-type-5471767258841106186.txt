@@ -1,0 +1,1 @@
+std::result::Result<<wager::Wager<'info_w> as anchor_lang::Accounts<'info_w, WagerBumps>>::try_accounts::__Args, std::io::Error>
