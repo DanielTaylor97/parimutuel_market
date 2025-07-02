@@ -1,4 +1,4 @@
-use anchor_lang::prelude::{borsh::{BorshDeserialize, BorshSerialize}, *};
+use anchor_lang::prelude::*;
 use anchor_spl::{
     metadata::{
         create_metadata_accounts_v3,
@@ -25,6 +25,7 @@ pub struct Initialise<'info_i> {
         mint::authority = mint
     )]
     pub mint: Account<'info_i, Mint>,
+    /// CHECK: Metaplex account that will be checked by the mpl program
     #[account(mut)]
     pub metadata: UncheckedAccount<'info_i>,
     pub system_program: Program<'info_i, System>,
@@ -33,7 +34,7 @@ pub struct Initialise<'info_i> {
     pub rent: Sysvar<'info_i, Rent>,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct InitTokenParams {
     name: String,
     symbol: String,

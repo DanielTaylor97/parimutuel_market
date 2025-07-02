@@ -1,3 +1,7 @@
+/node_modules
+
 /target/debug
 /target/.rustc_info.json
-/node_modules
+/target/sbf-solana-solana
+/target/sbpf-solana-solana
+/target/release

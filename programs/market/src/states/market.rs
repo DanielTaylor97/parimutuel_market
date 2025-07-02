@@ -1,4 +1,4 @@
-use anchor_lang::prelude::{borsh::{BorshSerialize, BorshDeserialize}, *};
+use anchor_lang::prelude::*;
 
 #[account]
 #[derive(InitSpace)]
@@ -13,7 +13,7 @@ pub struct Market {
     pub round: u16,         // Number of this round of the market
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum MarketState {
     Initialised,
     Inactive,
@@ -22,13 +22,13 @@ pub enum MarketState {
     Consolidating,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace)]
 pub struct MarketParams {
     pub authensus_token: Pubkey,
     pub facet: Facet,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum Facet {
     Truthfulness,
     Originality,
