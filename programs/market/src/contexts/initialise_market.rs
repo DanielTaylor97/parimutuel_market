@@ -16,7 +16,7 @@ pub struct InitialiseMarket<'info_i> {
         seeds = [b"market", authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_i, Market>,
+    pub market: Box<Account<'info_i, Market>>,
     pub system_program: Program<'info_i, System>,
 }
 

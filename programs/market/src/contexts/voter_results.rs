@@ -33,25 +33,25 @@ pub struct VoterResult<'info_vr> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_vr, Market>,
+    pub market: Box<Account<'info_vr, Market>>,
     #[account(
         mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_vr, Poll>,
+    pub poll: Box<Account<'info_vr, Poll>>,
     #[account(
         mut,
         seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub voter: Account<'info_vr, Voter>,
+    pub voter: Box<Account<'info_vr, Voter>>,
     #[account(mut)]
     pub voting_token_account: Account<'info_vr, TokenAccount>,          // Should already be initialised
     #[account(mut)]
     pub treasury_voting_token_account: Account<'info_vr, TokenAccount>, // This should already be initialised with the treasury
     #[account(mut)]
-    pub treasury: Account<'info_vr, Treasury>,
+    pub treasury: Box<Account<'info_vr, Treasury>>,
     pub treasury_program: Program<'info_vr, TreasuryProgram>,
     pub associated_token_program: Program<'info_vr, AssociatedToken>,
     #[account(mut)]

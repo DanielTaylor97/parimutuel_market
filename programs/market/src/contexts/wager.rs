@@ -24,13 +24,13 @@ pub struct Wager<'info_w> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_w, Market>,
+    pub market: Box<Account<'info_w, Market>>,
     #[account(
         mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_w, Escrow>,
+    pub escrow: Box<Account<'info_w, Escrow>>,
     #[account(
         init_if_needed,
         space = Bettor::INIT_SPACE,
@@ -38,9 +38,9 @@ pub struct Wager<'info_w> {
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub bettor: Account<'info_w, Bettor>,
+    pub bettor: Box<Account<'info_w, Bettor>>,
     #[account(mut)]
-    pub treasury: Account<'info_w, Treasury>,       // Should already be initialised
+    pub treasury: Box<Account<'info_w, Treasury>>,  // Should already be initialised
     pub system_program: Program<'info_w, System>,
 }
 

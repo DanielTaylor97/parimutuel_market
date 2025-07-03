@@ -23,7 +23,7 @@ pub struct Transact<'info_t> {
         seeds = [b"treasury"],
         bump,
     )]
-    pub treasury: Account<'info_t, Treasury>,
+    pub treasury: Box<Account<'info_t, Treasury>>,
     #[account(mut)]
     pub voting_token_account: Account<'info_t, TokenAccount>,   // This should already be initialised
     pub system_program: Program<'info_t, System>,

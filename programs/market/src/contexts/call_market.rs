@@ -15,19 +15,19 @@ pub struct CallMarket<'info_c> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_c, Market>,
+    pub market: Box<Account<'info_c, Market>>,
     #[account(
         mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_c, Poll>,
+    pub poll: Box<Account<'info_c, Poll>>,
     #[account(
         mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_c, Escrow>,
+    pub escrow: Box<Account<'info_c, Escrow>>,
 }
 
 impl<'info_c> CallMarket<'info_c> {

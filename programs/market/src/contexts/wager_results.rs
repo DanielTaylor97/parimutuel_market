@@ -35,25 +35,25 @@ pub struct WagerResult<'info_wr> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_wr, Market>,
+    pub market: Box<Account<'info_wr, Market>>,
     #[account(
         mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_wr, Escrow>,
+    pub escrow: Box<Account<'info_wr, Escrow>>,
     #[account(
         mut,
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub bettor: Account<'info_wr, Bettor>,
+    pub bettor: Box<Account<'info_wr, Bettor>>,
     #[account(
         mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_wr, Poll>,
+    pub poll: Box<Account<'info_wr, Poll>>,
     #[account(mut)]
     pub mint: Account<'info_wr, Mint>,
     #[account(
@@ -64,7 +64,7 @@ pub struct WagerResult<'info_wr> {
     )]
     pub recipient: Account<'info_wr, TokenAccount>,
     #[account(mut)]
-    pub treasury: Account<'info_wr, Treasury>,
+    pub treasury: Box<Account<'info_wr, Treasury>>,
     pub treasury_program: Program<'info_wr, TreasuryProgram>,
     pub voting_tokens_program: Program<'info_wr, VotingTokens>,
     pub system_program: Program<'info_wr, System>,

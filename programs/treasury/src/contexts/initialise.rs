@@ -19,7 +19,7 @@ pub struct Initialise<'info_i> {
         seeds = [b"treasury"],
         bump,
     )]
-    pub treasury: Account<'info_i, Treasury>,
+    pub treasury: Box<Account<'info_i, Treasury>>,
     #[account(
         init_if_needed,
         payer = signer,

@@ -24,19 +24,19 @@ pub struct Vote<'info_v> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_v, Market>,
+    pub market: Box<Account<'info_v, Market>>,
     #[account(
         mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_v, Escrow>,
+    pub escrow: Box<Account<'info_v, Escrow>>,
     #[account(
         mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_v, Poll>,
+    pub poll: Box<Account<'info_v, Poll>>,
     #[account(
         init_if_needed,
         space = Voter::INIT_SPACE,
@@ -44,7 +44,7 @@ pub struct Vote<'info_v> {
         seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub voter: Account<'info_v, Voter>,
+    pub voter: Box<Account<'info_v, Voter>>,
     #[account(mut)]
     pub voting_token_account: Account<'info_v, TokenAccount>,           // This should already be initialised from wager_results (or purchasing)
     #[account(mut)]
@@ -52,7 +52,7 @@ pub struct Vote<'info_v> {
     #[account(mut)]
     pub treasury_voting_token_account: Account<'info_v, TokenAccount>,  // This should already be initialised with the treasury
     #[account(mut)]
-    pub treasury: Account<'info_v, Treasury>,
+    pub treasury: Box<Account<'info_v, Treasury>>,
     pub system_program: Program<'info_v, System>,
     pub token_program: Program<'info_v, Token>,
     pub associated_token_program: Program<'info_v, AssociatedToken>,

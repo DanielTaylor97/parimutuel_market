@@ -21,7 +21,7 @@ pub struct StartMarket<'info_s> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_s, Market>,
+    pub market: Box<Account<'info_s, Market>>,
     #[account(
         init_if_needed,
         space = Escrow::INIT_SPACE,
@@ -29,7 +29,7 @@ pub struct StartMarket<'info_s> {
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_s, Escrow>,
+    pub escrow: Box<Account<'info_s, Escrow>>,
     #[account(
         init_if_needed,
         space = Poll::INIT_SPACE,
@@ -37,7 +37,7 @@ pub struct StartMarket<'info_s> {
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_s, Poll>,
+    pub poll: Box<Account<'info_s, Poll>>,
     #[account(
         init_if_needed,
         space = Bettor::INIT_SPACE,
@@ -45,9 +45,9 @@ pub struct StartMarket<'info_s> {
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub initialiser: Account<'info_s, Bettor>,
+    pub initialiser: Box<Account<'info_s, Bettor>>,
     #[account(mut)]
-    pub treasury: Account<'info_s, Treasury>,       // Should already be initialised
+    pub treasury: Box<Account<'info_s, Treasury>>,  // Should already be initialised
     pub system_program: Program<'info_s, System>,
 }
 
