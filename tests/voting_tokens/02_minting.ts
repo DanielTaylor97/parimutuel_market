@@ -69,11 +69,11 @@ describe("voting_tokens mint", () => {
         // Airdrop
         let tx_airdrop = new Transaction();
         tx_airdrop.instructions = [
-            SystemProgram.transfer({
-                fromPubkey: provider.publicKey,
-                toPubkey: signer.publicKey,
-                lamports: 0.1*LAMPORTS_PER_SOL,
-            }),
+            // SystemProgram.transfer({
+            //     fromPubkey: provider.publicKey,
+            //     toPubkey: signer.publicKey,
+            //     lamports: 0.1*LAMPORTS_PER_SOL,
+            // }),
             SystemProgram.transfer({
                 fromPubkey: provider.publicKey,
                 toPubkey: recipient.publicKey,
@@ -82,18 +82,18 @@ describe("voting_tokens mint", () => {
         ];
         await provider.sendAndConfirm(tx_airdrop, []);
 
-        // Initialise
-        const params = {
-            name: "AuthensusVotingToken",
-            symbol: "AUTHVOTE",
-            uri: "",
-            decimals: 9,
-        };
-        await program.methods.init(params)
-            .accounts({ ...init_accounts })
-            .signers([signer])
-            .rpc()
-            .then(confirm);
+        // // Initialise
+        // const params = {
+        //     name: "AuthensusVotingToken",
+        //     symbol: "AUTHVOTE",
+        //     uri: "",
+        //     decimals: 9,
+        // };
+        // await program.methods.init(params)
+        //     .accounts({ ...init_accounts })
+        //     .signers([signer])
+        //     .rpc()
+        //     .then(confirm);
 
         const amount = 1_000_000_000;
 
