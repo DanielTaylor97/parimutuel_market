@@ -33,7 +33,7 @@ pub struct Wager<'info_w> {
     pub escrow: Box<Account<'info_w, Escrow>>,
     #[account(
         init_if_needed,
-        space = Bettor::INIT_SPACE,
+        space = 8 + Bettor::INIT_SPACE,
         payer = signer,
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,

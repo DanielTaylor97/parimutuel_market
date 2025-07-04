@@ -39,7 +39,7 @@ pub struct Vote<'info_v> {
     pub poll: Box<Account<'info_v, Poll>>,
     #[account(
         init_if_needed,
-        space = Voter::INIT_SPACE,
+        space = 8 + Voter::INIT_SPACE,
         payer = signer,
         seeds = [b"voter", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,

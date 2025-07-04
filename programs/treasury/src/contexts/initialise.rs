@@ -14,7 +14,7 @@ pub struct Initialise<'info_i> {
     pub signer: Signer<'info_i>,
     #[account(
         init,
-        space = Treasury::INIT_SPACE,
+        space = 8 + Treasury::INIT_SPACE,
         payer = signer,
         seeds = [b"treasury"],
         bump,

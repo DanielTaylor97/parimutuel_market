@@ -5,13 +5,13 @@ use crate::constants::{MIN_ALLOWED_TIMEOUT, MAX_ALLOWED_TIMEOUT};
 use crate::error::InitError;
 
 #[derive(Accounts)]
-#[instruction(authensus_token: Pubkey)]
+#[instruction(authensus_token: Pubkey, facets: Vec<Facet>)]
 pub struct InitialiseMarket<'info_i> {
     #[account(mut)]
     pub admin: Signer<'info_i>,
     #[account(
         init,
-        space = Market::INIT_SPACE,
+        space = 8 + Market::INIT_SPACE,   // Discriminator + Init space + space for new token pk + space for facets vec (4 + <number of elements> * <size of element on solana>)
         payer = admin,
         seeds = [b"market", authensus_token.as_ref()],
         bump,

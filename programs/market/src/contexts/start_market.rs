@@ -24,7 +24,7 @@ pub struct StartMarket<'info_s> {
     pub market: Box<Account<'info_s, Market>>,
     #[account(
         init_if_needed,
-        space = Escrow::INIT_SPACE,
+        space = 8 + Escrow::INIT_SPACE,
         payer = signer,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
@@ -32,7 +32,7 @@ pub struct StartMarket<'info_s> {
     pub escrow: Box<Account<'info_s, Escrow>>,
     #[account(
         init_if_needed,
-        space = Poll::INIT_SPACE,
+        space = 8 + Poll::INIT_SPACE,
         payer = signer,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
@@ -40,7 +40,7 @@ pub struct StartMarket<'info_s> {
     pub poll: Box<Account<'info_s, Poll>>,
     #[account(
         init_if_needed,
-        space = Bettor::INIT_SPACE,
+        space = 8 + Bettor::INIT_SPACE,
         payer = signer,
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,

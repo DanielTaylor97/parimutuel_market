@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 import { VotingTokens } from "../../target/types/voting_tokens";
@@ -57,6 +57,24 @@ describe("voting_tokens", () => {
       );
       return signature;
     };
+
+
+    it("Airdrop", async () => {
+  
+      let tx = new Transaction();
+  
+      tx.instructions = [
+        SystemProgram.transfer({
+          fromPubkey: provider.publicKey,
+          toPubkey: signer.publicKey,
+          lamports: 0.1*LAMPORTS_PER_SOL,
+        })
+      ];
+  
+      await provider.sendAndConfirm(tx, []).then(log);
+  
+    });
+
 
     it("Initialises", async () => {
 
