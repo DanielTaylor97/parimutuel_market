@@ -1,3 +1,14 @@
+// As this is currently implemented, initialising the token mint in-line, we cannot run it in parallel with the voting_tokens tests.
+// One way of getting around this is to run the tests by launching a local test validator
+// ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
+// and using
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-market```
+// to run only the tests in the tests/market folder (check Anchor.toml for implementation of that instrustion).
+// This does no building/deploying on its own, so those instructions must be executed separately:
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor build --no-idl```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p market -o target/idl/market.json -t target/types/market.ts```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor deploy```
+
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";

@@ -1,3 +1,14 @@
+// As this is currently implemented we cannot run it in parallel with the other tests as they require their own initialisations of
+// the token mint. One way of getting around this is to run the tests by launching a local test validator
+// ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
+// and using
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-voting-tokens```
+// to run only the tests in the tests/voting_tokens folder (check Anchor.toml for implementation of that instrustion).
+// This does no building/deploying on its own, so those instructions must be executed separately:
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor build --no-idl```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p voting_tokens -o target/idl/voting_tokens.json -t target/types/voting_tokens.ts```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor deploy```
+
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
@@ -19,23 +30,23 @@ describe("voting_tokens", () => {
     const MINT_SEED = "mint";
   
     const signer = Keypair.generate();
-    const mint = PublicKey.findProgramAddressSync(
+    const mintPda = PublicKey.findProgramAddressSync(
       [Buffer.from(MINT_SEED)],
       program.programId
-    )[0];
-    const metadata = PublicKey.findProgramAddressSync(
+    );
+    const metadataPda = PublicKey.findProgramAddressSync(
         [
             Buffer.from(METADATA_SEED),
             TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-            mint.toBuffer(),
+            mintPda[0].toBuffer(),
         ],
-        program.programId
-      )[0];
+        TOKEN_METADATA_PROGRAM_ID
+      );
   
     const init_accounts = {
       signer: signer.publicKey,
-      mint,
-      metadata,
+      mint: mintPda[0],
+      metadata: metadataPda[0],
       system_program: SystemProgram.programId,
       token_program: TOKEN_PROGRAM_ID,
       token_metadata_program: TOKEN_METADATA_PROGRAM_ID,

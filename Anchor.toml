@@ -18,6 +18,9 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/**/*.ts"
+test-treasury = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/treasury/*.ts"
+test-market = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/market/*.ts"
+test-voting-tokens = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/voting_tokens/*.ts"
 
 [[test.genesis]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
