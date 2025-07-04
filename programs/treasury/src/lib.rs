@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("FM1cd5jwHPnnr1kNVnW92EXYsPhcbKrQTfjSiPxknZYr");
+declare_id!("7UeS9dEfZV8TBwbSFHPWDSQ3UBxCwTwntMeAmxBfeSLA");
 
 pub mod states;
 pub mod contexts;
@@ -12,7 +12,6 @@ pub mod constants;
 pub use states::*;
 pub use contexts::*;
 pub use error::*;
-pub use constants::*;
 
 #[program]
 pub mod treasury_program {

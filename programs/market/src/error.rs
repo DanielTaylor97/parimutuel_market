@@ -4,13 +4,13 @@ use anchor_lang::error_code;
 pub enum InitError {
 
     #[msg("No facets have  been provided for the market to be initialised")]
-    NoFacetsProvided,
+    NoFacetsProvided = 0,
 
     #[msg("The betting timeout is larger than the maximum allowed (2 weeks)")]
-    TimeoutTooLarge,
+    TimeoutTooLarge = 1,
 
     #[msg("The betting timeout is smaller than the minimum allowed (1 day)")]
-    TimeoutTooSmall,
+    TimeoutTooSmall = 2,
 
 }
 
@@ -18,10 +18,10 @@ pub enum InitError {
 pub enum FacetError {
 
     #[msg("The selected facet is not present in the given market")]
-    FacetNotInMarket,
+    FacetNotInMarket = 100,
 
     #[msg("The poll and escrow must be for the same facet")]
-    NotTheSameFacet,
+    NotTheSameFacet = 101,
 
 }
 
@@ -29,13 +29,13 @@ pub enum FacetError {
 pub enum TreasuryError {
 
     #[msg("The authority of the supplied treasury is not the authority provided")]
-    TreasuryAuthoritiesDontMatch,
+    TreasuryAuthoritiesDontMatch = 200,
 
-    #[msg("This is not the expected treasury authority")]
-    WrongTreasuryAuthority,
+    #[msg("This is not the expected treasury")]
+    WrongTreasury = 201,
 
     #[msg("The account supplied is not for the Treasury Program")]
-    NotTheRightTreasuryProgramPK,
+    NotTheRightTreasuryProgramPK = 202,
 
 }
 
@@ -43,10 +43,10 @@ pub enum TreasuryError {
 pub enum MintError {
 
     #[msg("This is not the expected Voting Tokens Mint")]
-    NotTheRightMintPK,
+    NotTheRightMintPK = 300,
 
     #[msg("The account supplied is not for the Voting Tokens Program")]
-    NotTheRightMintProgramPK,
+    NotTheRightMintProgramPK = 301,
 
 }
 
@@ -54,10 +54,10 @@ pub enum MintError {
 pub enum MarketError {
 
     #[msg("The poll/escrow must be for the same market")]
-    NotTheSameMarket,
+    NotTheSameMarket = 400,
 
     #[msg("The market is in the wrong state")]
-    MarketInWrongState,
+    MarketInWrongState = 401,
 
 }
 
@@ -65,7 +65,7 @@ pub enum MarketError {
 pub enum TokenError {
 
     #[msg("The token address provided does not correspond to the market")]
-    NotTheSameToken,
+    NotTheSameToken = 500,
 
 }
 
@@ -73,28 +73,28 @@ pub enum TokenError {
 pub enum BettingError {
 
     #[msg("You have tried to start an ongoing market")]
-    StartingWithBetsInPlace,
+    StartingWithBetsInPlace = 600,
 
     #[msg("The bettor needs to be the same person who signs the transaction")]
-    SignerDifferentFromBettor,
+    SignerDifferentFromBettor = 601,
 
     #[msg("Not enough funds to place the bet")]
-    InsufficientFunds,
+    InsufficientFunds = 602,
 
     #[msg("The market is not in the betting state right now")]
-    MarketNotInBettingState,
+    MarketNotInBettingState = 603,
 
     #[msg("There need to be standard wagers placed before an underdog bet can be placed")]
-    UnderdogBetTooEarly,
+    UnderdogBetTooEarly = 604,
 
     #[msg("Cannot place underdog bet with regular bet already in place")]
-    UnderdogWithOtherBet,
+    UnderdogWithOtherBet = 605,
 
     #[msg("Cannot place another bet when underdog bet is in place")]
-    BetWithUnderdogBet,
+    BetWithUnderdogBet = 606,
 
     #[msg("Too many bettors in the market")]
-    TooManyBettors,
+    TooManyBettors = 607,
 
 }
 
@@ -102,40 +102,40 @@ pub enum BettingError {
 pub enum VotingError {
 
     #[msg("You have tried to start an ongoing poll")]
-    StartingWithVotesInPlace,
+    StartingWithVotesInPlace = 700,
 
     #[msg("It is not the voting period yet")]
-    NotVotingTime,
+    NotVotingTime = 701,
 
     #[msg("The voter needs to come from the same person who signs the transaction")]
-    SignerDifferentFromVoter,
+    SignerDifferentFromVoter = 702,
 
     #[msg("Provided ATA does not match the mint and signer")]
-    IncorrectATA,
+    IncorrectATA = 703,
 
     #[msg("Provided ATA is not for the treasury")]
-    IncorrectTreasuryATA,
+    IncorrectTreasuryATA = 704,
 
     #[msg("Cannot vote on a market in which you have already placed bets")]
-    CannotVoteWithBets,
+    CannotVoteWithBets = 705,
 
     #[msg("Only one vote allowed per market")]
-    AlreadyVoted,
+    AlreadyVoted = 706,
 
     #[msg("The voting has finished for this round")]
-    VotingClosed,
+    VotingClosed = 707,
 
     #[msg("Not enough voting tokens to make that transaction")]
-    InsufficientVotingTokens,
+    InsufficientVotingTokens = 708,
 
     #[msg("The mint provided is not the expected mint")]
-    IncorrectMint,
+    IncorrectMint = 709,
 
     #[msg("Voting amount too low")]
-    AmountTooLow,
+    AmountTooLow = 710,
 
     #[msg("Voting amount too high")]
-    AmountTooHigh,
+    AmountTooHigh = 711,
 
 }
 
@@ -143,34 +143,34 @@ pub enum VotingError {
 pub enum ResultsError {
 
     #[msg("Voting has not yet finished")]
-    VotingNotFinished,
+    VotingNotFinished = 800,
 
     #[msg("Given address is not a bettor in this market-facet combination")]
-    NotABettor,
+    NotABettor = 801,
 
     #[msg("The signer is not the person receiving the results")]
-    SignerNotPK,
+    SignerNotPK = 802,
 
     #[msg("This person is either not a voter or has already tried to receive their voting reward")]
-    NotAVoter,
+    NotAVoter = 803,
 
     #[msg("The wager numbers don't add up")]
-    WagersDontAddUp,
+    WagersDontAddUp = 804,
 
     #[msg("The votes don't add up")]
-    VotesDontAddUp,
+    VotesDontAddUp = 805,
 
     #[msg("This bettor has already been reimbursed")]
-    BettorAlreadyConsolidated,
+    BettorAlreadyConsolidated = 806,
 
     #[msg("This voter has already been reimbursed")]
-    VoterAlreadyConsolidated,
+    VoterAlreadyConsolidated = 807,
 
     #[msg("Not all of the bets have been consolidated")]
-    NotAllBetsConsolidated,
+    NotAllBetsConsolidated = 808,
 
     #[msg("Not all of the votes have been consolidated")]
-    NotAllVotesConsolidated,
+    NotAllVotesConsolidated = 809,
 
 }
 
@@ -178,6 +178,6 @@ pub enum ResultsError {
 pub enum CpiError {
 
     #[msg("The program ID for CPI was unexpected")]
-    WrongProgramID,
+    WrongProgramID = 900,
 
 }

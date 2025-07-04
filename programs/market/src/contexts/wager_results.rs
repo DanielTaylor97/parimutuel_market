@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::{get_associated_token_address_with_program_id, AssociatedToken},
@@ -11,14 +9,16 @@ use treasury::{
     program::TreasuryProgram,
     self,
     Treasury,
+    id as get_treasury_program_id,
 };
 use voting_tokens::{
     cpi::{accounts::MintTokens, mint_tokens},
     self,
     program::VotingTokens,
+    id as get_voting_tokens_program_id,
 };
 
-use crate::constants::{PERCENTAGE_WINNINGS_KEPT, TREASURY_AUTHORITY, TREASURY_PROGRAM_ID, VOTE_THRESHOLD, VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID};
+use crate::constants::{PERCENTAGE_WINNINGS_KEPT, VOTE_THRESHOLD};
 use crate::error::{CpiError, FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 use crate::utils::functions::compute_returns;
@@ -80,8 +80,11 @@ impl<'info_wr> WagerResult<'info_wr> {
         params: &MarketParams,
     ) -> Result<()> {
 
-        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
-        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+        let mint_program_pk: Pubkey = get_voting_tokens_program_id();
+        let mint_pk: Pubkey= Pubkey::find_program_address(
+            &[b"mint"],
+            &mint_program_pk,
+        ).0;
 
         let signer_ata: Pubkey = get_associated_token_address_with_program_id(
              &self.signer.key(),
@@ -99,14 +102,20 @@ impl<'info_wr> WagerResult<'info_wr> {
             false => false,
         };
 
+        let treasury_program_pk = get_treasury_program_id();
+        let expected_treasury_address = Pubkey::find_program_address(
+            &[b"treasury"],
+            &treasury_program_pk,
+        ).0;
+
         // Requirements:                                                        |   Implemented:
         //  - Voting is finished                                                |       √
         //  - Given address is a bettor                                         |       √
-        //  - The person should not yet have had their votes consolidated
+        //  - The person should not yet have had their votes consolidated       |       √
         //  - Market should contain the given facet                             |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
         //  - ATA needs to be correct                                           |       √
         //  - Mint account ID needs to be correct                               |       √
         //  - Treasury Program needs to be correct                              |       √
@@ -117,11 +126,11 @@ impl<'info_wr> WagerResult<'info_wr> {
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
         require!(signer_ata == self.recipient.key(), VotingError::IncorrectATA);
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
-        require!(self.treasury_program.key().to_string() == TREASURY_PROGRAM_ID, TreasuryError::NotTheRightTreasuryProgramPK);
-        require!(self.voting_tokens_program.key().to_string() == VOTING_TOKENS_PROGRAM_ID, MintError::NotTheRightMintProgramPK);
+        require!(self.treasury_program.key() == get_treasury_program_id(), TreasuryError::NotTheRightTreasuryProgramPK);
+        require!(self.voting_tokens_program.key() == get_voting_tokens_program_id(), MintError::NotTheRightMintProgramPK);
 
         self.add_to_consolidated()?;
 
@@ -203,7 +212,7 @@ impl<'info_wr> WagerResult<'info_wr> {
     ) -> Result<()> {
 
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
-        require!(self.voting_tokens_program.key().to_string() == VOTING_TOKENS_PROGRAM_ID, CpiError::WrongProgramID);
+        require!(self.voting_tokens_program.key() == get_voting_tokens_program_id(), CpiError::WrongProgramID);
 
         let accounts: MintTokens<'_> = MintTokens{
             payer: self.signer.to_account_info(),

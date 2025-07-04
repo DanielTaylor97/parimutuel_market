@@ -3,10 +3,10 @@ use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
 use treasury::{
     self,
     Treasury,
+    id as get_treasury_program_id,
 };
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
-use crate::constants::TREASURY_AUTHORITY;
 use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError, VotingError};
 
 #[derive(Accounts)]
@@ -59,6 +59,12 @@ impl<'info_s> StartMarket<'info_s> {
         params: &MarketParams,
     ) -> Result<()> {
 
+        let treasury_program_pk = get_treasury_program_id();
+        let expected_treasury_address = Pubkey::find_program_address(
+            &[b"treasury"],
+            &treasury_program_pk,
+        ).0;
+
         // Requirements:                                                        |   Implemented:
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
@@ -66,14 +72,14 @@ impl<'info_s> StartMarket<'info_s> {
         //  - There should be no bettors and no bets in the escrow              |       √
         //  - There should be no voters and no votes in the poll                |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.market.state == MarketState::Initialised || self.market.state == MarketState::Inactive, MarketError::MarketInWrongState);
         require!(self.escrow.bettors == None && self.escrow.bettors_consolidated == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
         require!(self.poll.voters == None && self.poll.voters_consolidated == None && self.poll.total_for + self.poll.total_against == 0, VotingError::StartingWithVotesInPlace);
         require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
 
         let start_time = Clock::get()?.unix_timestamp;
 
@@ -119,6 +125,12 @@ impl<'info_s> StartMarket<'info_s> {
         direction: bool,
     ) -> Result<()> {
 
+        let treasury_program_pk = get_treasury_program_id();
+        let expected_treasury_address = Pubkey::find_program_address(
+            &[b"treasury"],
+            &treasury_program_pk,
+        ).0;
+
         // Requirements:                                                        |   Implemented:
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
@@ -126,14 +138,14 @@ impl<'info_s> StartMarket<'info_s> {
         //  - Initialiser should have sufficient funds to make the bet          |       √
         //  - Market should now be in a betting state                           |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.escrow.bettors == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
         require!(self.initialiser.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
 
         self.receive_sol_start(self.signer.to_account_info(), amount)?;
 

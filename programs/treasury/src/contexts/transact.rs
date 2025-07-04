@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use anchor_lang::{
     prelude::*,
     system_program::{transfer, Transfer}
@@ -8,8 +7,9 @@ use anchor_spl::{
     token::TokenAccount
 };
 
+use voting_tokens::id as voting_tokens_program_id;
+
 use crate::states::Treasury;
-use crate::constants::{VOTING_TOKENS_MINT_ID, VOTING_TOKENS_PROGRAM_ID};
 use crate::error::TransactionError;
 
 #[derive(Accounts)]
@@ -37,8 +37,11 @@ impl<'info_t> Transact<'info_t> {
         amount: u64,
     ) -> Result<()> {
 
-        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
-        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+        let mint_program_pk: Pubkey = voting_tokens_program_id();
+        let mint_pk: Pubkey = Pubkey::find_program_address(
+            &[b"mint"],
+            &mint_program_pk
+        ).0;
         let signer_ata: Pubkey = get_associated_token_address_with_program_id(
              &self.signer.key(),
              &mint_pk,
@@ -66,8 +69,11 @@ impl<'info_t> Transact<'info_t> {
         amount: u64,
     ) -> Result<()> {
 
-        let mint_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_MINT_ID).unwrap();
-        let mint_program_pk: Pubkey = Pubkey::from_str(VOTING_TOKENS_PROGRAM_ID).unwrap();
+        let mint_program_pk: Pubkey = voting_tokens_program_id();
+        let mint_pk: Pubkey = Pubkey::find_program_address(
+            &[b"mint"],
+            &mint_program_pk
+        ).0;
         let signer_ata: Pubkey = get_associated_token_address_with_program_id(
              &self.signer.key(),
              &mint_pk,

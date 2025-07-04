@@ -4,8 +4,9 @@ use anchor_spl::{
     token::{Mint, TokenAccount, Token}
 };
 
+use voting_tokens::id as voting_tokens_program_id;
+
 use crate::states::Treasury;
-use crate::constants::VOTING_TOKENS_MINT_ID;
 use crate::error::InitError;
 
 #[derive(Accounts)]
@@ -41,9 +42,15 @@ impl<'info_i> Initialise<'info_i> {
         bumps: &InitialiseBumps,
     ) -> Result<()> {
 
+        let mint_program_pk: Pubkey = voting_tokens_program_id();
+        let expected_mint_address: Pubkey = Pubkey::find_program_address(
+            &[b"mint"],
+            &mint_program_pk
+        ).0;
+
         // Requirements:                            |   Implemented:
         //  - The mint must be the expected account |       √
-        require!(self.mint.key().to_string() == VOTING_TOKENS_MINT_ID, InitError::WrongTokenMint);
+        require!(self.mint.key() == expected_mint_address, InitError::WrongTokenMint);
 
         self.treasury.set_inner(
             Treasury { 

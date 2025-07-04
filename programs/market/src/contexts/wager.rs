@@ -6,10 +6,11 @@ use anchor_lang::{
 use treasury::{
     self,
     Treasury,
+    id as get_treasury_program_id,
 };
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
-use crate::constants::{MAX_WAGERS, TREASURY_AUTHORITY};
+use crate::constants::MAX_WAGERS;
 use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
 
 #[derive(Accounts)]
@@ -61,6 +62,12 @@ impl<'info_w> Wager<'info_w> {
             false => true,
         };
 
+        let treasury_program_pk = get_treasury_program_id();
+        let expected_treasury_address = Pubkey::find_program_address(
+            &[b"treasury"],
+            &treasury_program_pk,
+        ).0;
+
         // Requirements:                                                        |   Implemented:
         //  - Market should be in a betting state                               |       √
         //  - Bettor should have sufficient balance to place the bet            |       √
@@ -68,7 +75,7 @@ impl<'info_w> Wager<'info_w> {
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Bettor should not have placed any underdog bets                   |       √
         //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
         //  - Current number of wagers must be less than the max                |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
@@ -76,7 +83,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
         require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
         require!(wagers_count_condition, BettingError::TooManyBettors);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
