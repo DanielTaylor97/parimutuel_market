@@ -10,13 +10,14 @@
 // ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor deploy```
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { AnchorError, Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { assert, expect } from "chai";
 
 import { VotingTokens } from "../../target/types/voting_tokens";
 
-describe("voting_tokens", () => {
+describe("voting_tokens init", () => {
     // Configure the client to use the local cluster.
     anchor.setProvider(anchor.AnchorProvider.env());
     const program = anchor.workspace.VotingTokens as Program<VotingTokens>;
@@ -87,6 +88,102 @@ describe("voting_tokens", () => {
     });
 
 
+    it("Catches wrong inputs", async () => {
+
+
+        // ------- SETUP -------
+
+        const params_incorrect_name = {
+          name: "AuthensusToken",
+          symbol: "AUTHVOTE",
+          uri: "",
+          decimals: 9,
+        };
+        const params_incorrect_symbol = {
+            name: "AuthensusVotingToken",
+            symbol: "VOTE",
+            uri: "",
+            decimals: 9,
+        };
+        const params_incorrect_uri = {
+            name: "AuthensusVotingToken",
+            symbol: "AUTHVOTE",
+            uri: "https://authensus.xyz",
+            decimals: 9,
+        };
+        const params_incorrect_decimals = {
+            name: "AuthensusVotingToken",
+            symbol: "AUTHVOTE",
+            uri: "",
+            decimals: 10,
+        };
+
+
+        // ------ EXECUTE/EVALUATE ------
+
+        try {
+          await program.methods.init(params_incorrect_name)
+            .accounts({ ...init_accounts })
+            .signers([signer])
+            .rpc()
+            .then(confirm)
+            .then(log);
+    
+            assert(false, "should've failed but didn't ")
+        } catch (err) {
+          expect(err).to.be.instanceOf(AnchorError);
+          expect((err as AnchorError).error.errorCode.number).to.equal(6000);
+          expect((err as AnchorError).error.errorCode.code).to.equal("WrongName");
+        }
+
+        try {
+          await program.methods.init(params_incorrect_symbol)
+            .accounts({ ...init_accounts })
+            .signers([signer])
+            .rpc()
+            .then(confirm)
+            .then(log);
+    
+            assert(false, "should've failed but didn't ")
+        } catch (err) {
+          expect(err).to.be.instanceOf(AnchorError);
+          expect((err as AnchorError).error.errorCode.number).to.equal(6001);
+          expect((err as AnchorError).error.errorCode.code).to.equal("WrongSymbol");
+        }
+
+        try {
+          await program.methods.init(params_incorrect_uri)
+            .accounts({ ...init_accounts })
+            .signers([signer])
+            .rpc()
+            .then(confirm)
+            .then(log);
+    
+            assert(false, "should've failed but didn't ")
+        } catch (err) {
+          expect(err).to.be.instanceOf(AnchorError);
+          expect((err as AnchorError).error.errorCode.number).to.equal(6002);
+          expect((err as AnchorError).error.errorCode.code).to.equal("WrongUri");
+        }
+
+        try {
+          await program.methods.init(params_incorrect_decimals)
+            .accounts({ ...init_accounts })
+            .signers([signer])
+            .rpc()
+            .then(confirm)
+            .then(log);
+    
+            assert(false, "should've failed but didn't ")
+        } catch (err) {
+          expect(err).to.be.instanceOf(AnchorError);
+          expect((err as AnchorError).error.errorCode.number).to.equal(6003);
+          expect((err as AnchorError).error.errorCode.code).to.equal("WrongDecimals");
+        }
+
+    });
+
+
     it("Initialises", async () => {
 
 
@@ -115,30 +212,5 @@ describe("voting_tokens", () => {
         console.log("Your transaction signature", tx);
 
     });
-
-    const params_incorrect_name = {
-        name: "AuthensusToken",
-        symbol: "AUTHVOTE",
-        uri: "",
-        decimals: 9,
-    };
-    const params_incorrect_symbol = {
-        name: "AuthensusVotingToken",
-        symbol: "VOTE",
-        uri: "",
-        decimals: 9,
-    };
-    const params_incorrect_uri = {
-        name: "AuthensusVotingToken",
-        symbol: "AUTHVOTE",
-        uri: "https://authensus.xyz",
-        decimals: 9,
-    };
-    const params_incorrect_decimals = {
-        name: "AuthensusVotingToken",
-        symbol: "AUTHVOTE",
-        uri: "",
-        decimals: 10,
-    };
 
 });

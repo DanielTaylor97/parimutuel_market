@@ -21,7 +21,7 @@ import {
 import { TreasuryProgram } from "../../target/types/treasury";
 import { VotingTokens } from "../../target/types/voting_tokens";
 
-describe("treasury", async () => {
+describe("treasury", () => {
     // Configure the client to use the local cluster.
     anchor.setProvider(anchor.AnchorProvider.env());
     const provider = anchor.getProvider();
@@ -78,7 +78,7 @@ describe("treasury", async () => {
         decimals: 9,
       };
 
-      const tx_init_mint = await mintProgram.methods.init(params_correct)
+      await mintProgram.methods.init(params_correct)
           .accounts({ ...mint_accounts })
           .signers([signer])
           .rpc()
@@ -88,22 +88,10 @@ describe("treasury", async () => {
     }
   
     const signer = Keypair.generate();
-    const mint = await mintfn();
     const treasuryPda = PublicKey.findProgramAddressSync(
       [Buffer.from("treasury")],
       program.programId
     );
-    const voting_token_account = getAssociatedTokenAddressSync(mint, treasuryPda[0], true);
-  
-    const init_accounts = {
-      signer: signer.publicKey,
-      treasury: treasuryPda[0],
-      voting_token_account,
-      mint,
-      token_program: TOKEN_PROGRAM_ID,
-      associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
-      system_program: SystemProgram.programId,
-    };
   
     const confirm = async (signature: string): Promise<string> => {
       const block = await connection.getLatestBlockhash();
@@ -124,9 +112,9 @@ describe("treasury", async () => {
 
     it("Airdrop", async () => {
   
-      let tx = new Transaction();
+      let airdrop_tx = new Transaction();
   
-      tx.instructions = [
+      airdrop_tx.instructions = [
         SystemProgram.transfer({
           fromPubkey: provider.publicKey,
           toPubkey: signer.publicKey,
@@ -134,7 +122,7 @@ describe("treasury", async () => {
         })
       ];
   
-      await provider.sendAndConfirm(tx, []).then(log);
+      await provider.sendAndConfirm(airdrop_tx, []).then(log);
   
     });
 
@@ -142,8 +130,19 @@ describe("treasury", async () => {
     it("Initialises", async () => {
 
         // ------- SETUP -------
-
-        //
+      
+        const mint = await mintfn();
+        const voting_token_account = getAssociatedTokenAddressSync(mint, treasuryPda[0], true);
+      
+        const init_accounts = {
+          signer: signer.publicKey,
+          treasury: treasuryPda[0],
+          voting_token_account,
+          mint,
+          token_program: TOKEN_PROGRAM_ID,
+          associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+          system_program: SystemProgram.programId,
+        };
 
 
         // ------ EXECUTE ------
