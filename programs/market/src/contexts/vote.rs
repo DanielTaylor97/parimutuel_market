@@ -79,7 +79,7 @@ impl<'info_v> Vote<'info_v> {
              &mint_pk,
         );
         let treasury_authority_ata: Pubkey = get_associated_token_address(
-            &self.treasury.authority,
+            &self.treasury.key(),
             &mint_pk,
         );
 
@@ -93,22 +93,24 @@ impl<'info_v> Vote<'info_v> {
             false => false,
         };
 
-        // Requirements:                                                                |   Implemented:
-        //  - The token must be the same as that which instantiated the market          |       √
-        //  - treasury_voting_token_account should be derivable from treasury authority |       √
-        //  - The betting round has finished                                            |       √
-        //  - Cannot have voted here already                                            |       √
-        //  - Voting threshold cannot have been reached yet                             |       √
-        //  - ATA needs to be correct                                                   |       √
-        //  - ATA must have sufficient tokens for this vote                             |       √
-        //  - Vote amount must be higher than minimum                                   |       √
-        //  - Vote amount must be lower than maximum                                    |       √
-        //  - Voter cannot have placed any bets                                         |       √
-        //  - Market should contain the given facet                                     |       √
-        //  - Mint PK needs to be correct                                               |       √
+        // Requirements:                                                        |   Implemented:
+        //  - The token must be the same as that which instantiated the market  |       √
+        //  - treasury_voting_token_account should be derivable from treasury   |       √
+        //  - The betting round has finished                                    |       √
+        //  - Market state must be betting (to be changed) or voting            |       √
+        //  - Cannot have voted here already                                    |       √
+        //  - Voting threshold cannot have been reached yet                     |       √
+        //  - ATA needs to be correct                                           |       √
+        //  - ATA must have sufficient tokens for this vote                     |       √
+        //  - Vote amount must be higher than minimum                           |       √
+        //  - Vote amount must be lower than maximum                            |       √
+        //  - Voter cannot have placed any bets                                 |       √
+        //  - Market should contain the given facet                             |       √
+        //  - Mint PK needs to be correct                                       |       √
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(treasury_authority_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
         require!(self.market.start_time + self.market.timeout < time, VotingError::NotVotingTime);
+        require!(self.market.state == MarketState::Betting || self.market.state == MarketState::Voting, VotingError::NotVotingTime);
         require!(!voters_count_condition, VotingError::AlreadyVoted);
         require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD.into(), VotingError::VotingClosed);    // Better to do time- or threshold-based?
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
@@ -120,22 +122,22 @@ impl<'info_v> Vote<'info_v> {
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
 
         // If the market state is still set to Betting but the betting markets have passed the timeout, then change to Voting
-        if self.market.state == MarketState::Betting && self.market.start_time + self.market.timeout < time {
+        if self.market.state == MarketState::Betting {
             self.market.state = MarketState::Voting;
         }
 
         // Receive voting tokens from ATA
-        self.receive_vote_token_into_treasury(self.voting_token_account.to_account_info(), amount)?;
+        self.receive_vote_token_into_treasury(amount)?;
 
         // Update poll + voter totals
         // Amount of vote does not change number of votes in the poll, only redemption
         // Everyone is marked as a single vote in the poll
-        let vote_for: u64 = match direction {
-            true => 1_u64,
-            false => 0_u64
+        let vote_for: u16 = match direction {
+            true => 1_u16,
+            false => 0_u16
         };
         
-        let vote_against: u64 = 1 - vote_for;
+        let vote_against: u16 = 1 - vote_for;
 
         // Update the poll
         let voters: &mut Vec<Pubkey> = &mut self.poll.voters.clone().unwrap();
@@ -163,14 +165,13 @@ impl<'info_v> Vote<'info_v> {
 
     fn receive_vote_token_into_treasury(
         &self,
-        from: AccountInfo<'info_v>,
         amount: u64
     ) -> Result<()> {
 
         let accounts = TransferChecked {
             mint: self.mint.to_account_info(),
-            from,
-            to: self.treasury_voting_token_account.to_account_info(),   // This should be the ATA for the treasury
+            from: self.voting_token_account.to_account_info(),          // ATA for the payer
+            to: self.treasury_voting_token_account.to_account_info(),   // ATA for the treasury
             authority: self.signer.to_account_info(),                   // Owner of the source token account
         };
 

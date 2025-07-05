@@ -70,8 +70,8 @@ impl<'info_c> CallMarket<'info_c> {
         // Empty poll
         self.poll.voters = None;
         self.poll.voters_consolidated = None;
-        self.poll.total_for = 0_u64;
-        self.poll.total_against = 0_u64;
+        self.poll.total_for = 0_u16;
+        self.poll.total_against = 0_u16;
 
         Ok(())
     }

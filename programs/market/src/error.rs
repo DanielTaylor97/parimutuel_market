@@ -170,11 +170,3 @@ pub enum ResultsError {
     NotAllVotesConsolidated = 809,
 
 }
-
-#[error_code]
-pub enum CpiError {
-
-    #[msg("The program ID for CPI was unexpected")]
-    WrongProgramID = 900,
-
-}

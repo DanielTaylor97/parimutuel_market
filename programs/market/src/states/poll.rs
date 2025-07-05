@@ -13,6 +13,6 @@ pub struct Poll {
     pub voters: Option<Vec<Pubkey>>,                // Everyone who has placed a vote in the poll
     #[max_len(VOTE_THRESHOLD)]
     pub voters_consolidated: Option<Vec<Pubkey>>,   // Count of the number of voters whose winnings have been calculated and reimbursed
-    pub total_for: u64,                             // Total votes for facet
-    pub total_against: u64,                         // Total votes against facet
+    pub total_for: u16,                             // Total votes for facet
+    pub total_against: u16,                         // Total votes against facet
 }

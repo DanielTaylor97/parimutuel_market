@@ -89,8 +89,8 @@ impl<'info_s> StartMarket<'info_s> {
                 facet: params.facet.clone(),    // Facet
                 voters: None,                   // Option<Vec<Pubkey>>
                 voters_consolidated: None,      // Option<Vec<Pubkey>>
-                total_for: 0_u64,               // u64
-                total_against: 0_u64,           // u64
+                total_for: 0_u16,               // u16
+                total_against: 0_u16,           // u16
             }
         );
 

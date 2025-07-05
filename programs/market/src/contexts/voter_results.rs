@@ -1,4 +1,7 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    system_program::{transfer, Transfer}
+};
 use anchor_spl::{
     associated_token::{get_associated_token_address, AssociatedToken},
     token::{Mint, Token, TokenAccount}
@@ -11,7 +14,8 @@ use voting_tokens::{
     id as get_voting_tokens_program_id,
 };
 
-use crate::error::{CpiError, FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
+use crate::constants::TREASURY_ADDRESS;
+use crate::error::{FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Market, MarketParams, MarketState, Poll, Voter};
 use crate::utils::functions::calc_winnings_from_votes;
 
@@ -19,7 +23,7 @@ use crate::utils::functions::calc_winnings_from_votes;
 #[instruction(params: MarketParams)]
 pub struct VoterResult<'info_vr> {
     #[account(mut)]
-    pub treasury_auth: Signer<'info_vr>,
+    pub treasury: Signer<'info_vr>,
     #[account(mut)]
     pub signer: Signer<'info_vr>,
     #[account(
@@ -43,16 +47,13 @@ pub struct VoterResult<'info_vr> {
     pub voting_token_account: Account<'info_vr, TokenAccount>,          // Should already be initialised
     #[account(mut)]
     pub treasury_voting_token_account: Account<'info_vr, TokenAccount>, // This should already be initialised with the treasury
-    #[account(mut)]
-    pub treasury: Box<Account<'info_vr, Treasury>>,
-    pub treasury_program: Program<'info_vr, TreasuryProgram>,
     pub associated_token_program: Program<'info_vr, AssociatedToken>,
     #[account(mut)]
     pub mint: Account<'info_vr, Mint>,
     pub system_program: Program<'info_vr, System>,
     pub token_program: Program<'info_vr, Token>,
-    pub rent: Sysvar<'info_vr, Rent>,
     pub voting_tokens_program: Program<'info_vr, VotingTokens>,
+    pub rent: Sysvar<'info_vr, Rent>,
 }
 
 impl<'info_vr> VoterResult<'info_vr> {
@@ -72,8 +73,8 @@ impl<'info_vr> VoterResult<'info_vr> {
              &self.signer.key(),
              &mint_pk,
         );
-        let treasury_authority_ata: Pubkey = get_associated_token_address(
-            &self.treasury.authority,
+        let treasury_ata: Pubkey = get_associated_token_address(
+            &self.treasury.key(),
             &mint_pk,
         );
 
@@ -87,37 +88,27 @@ impl<'info_vr> VoterResult<'info_vr> {
             false => false,
         };
 
-        let treasury_program_pk = get_treasury_program_id();
-        let expected_treasury_address = Pubkey::find_program_address(
-            &[b"treasury"],
-            &treasury_program_pk,
-        ).0;
-
         // Requirements:                                                                                        |   Implemented:
         //  - Market should now be in the consolidation state (i.e. should only be called after wager results)  |       √
         //  - The person should be a voter in the poll                                                          |       √
         //  - The person should not yet have had their votes consolidated                                       |       √
         //  - Market should contain the given facet                                                             |       √
         //  - The token must be the same as that which instantiated the market                                  |       √
-        //  - Treasury authority should be the same as treasury_auth                                            |       √
         //  - Treasury should have the expected address                                                         |       √
         //  - ATA needs to be correct                                                                           |       √
         //  - Mint PK needs to be correct                                                                       |       √
-        //  - Treasury Program needs to be correct                                                              |       √
         //  - Voting Tokens Program needs to be correct                                                         |       √
-        //  - treasury_voting_token_account should be derivable from treasury authority                         |       √
+        //  - treasury_voting_token_account should be derivable from treasury account                           |       √
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
         require!(voters_count_condition, ResultsError::NotAVoter);
         require!(!consolidated_voters_condition, ResultsError::VoterAlreadyConsolidated);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
-        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
+        require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
-        require!(self.treasury_program.key() == treasury_program_pk, TreasuryError::NotTheRightTreasuryProgramPK);
         require!(self.voting_tokens_program.key() == mint_program_pk, MintError::NotTheRightMintProgramPK);
-        require!(treasury_authority_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
+        require!(treasury_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
 
         self.add_to_consolidated()?;
 
@@ -133,6 +124,9 @@ impl<'info_vr> VoterResult<'info_vr> {
             self.voter.amount,
         );
 
+        // Reset vote amount
+        self.voter.amount = 0_u64;
+
         if winnings == 0 {
             return Ok(())
         }
@@ -146,7 +140,12 @@ impl<'info_vr> VoterResult<'info_vr> {
     ) -> Result<()> {
 
         // In the case of a tie everyone gets their votes tokens re-minted
-        self.reimburse_votes(self.voting_token_account.to_account_info(), self.voter.amount)
+        self.reimburse_votes(self.voting_token_account.to_account_info(), self.voter.amount)?;
+
+        // Reset vote amount
+        self.voter.amount = 0_u64;
+
+        Ok(())
 
     }
 
@@ -155,9 +154,6 @@ impl<'info_vr> VoterResult<'info_vr> {
         to: AccountInfo<'info_vr>,
         amount: u64
     ) -> Result<()> {
-
-        require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
-        require!(self.voting_tokens_program.key() == get_voting_tokens_program_id(), CpiError::WrongProgramID);
 
         let accounts: MintTokens<'_> = MintTokens{
             payer: self.signer.to_account_info(),
@@ -187,25 +183,16 @@ impl<'info_vr> VoterResult<'info_vr> {
         &mut self,
         winnings: u64,
     ) -> Result<()> {
-        let cpi_accounts = Transact {
-            signer: self.treasury_auth.to_account_info(),                               // This needs to be the treasury authority
-            coparty: self.signer.to_account_info(),                                     // This needs to be the person receiving the reimbursement
-            treasury: self.treasury.to_account_info(),
-            voting_token_account: self.treasury_voting_token_account.to_account_info(),
-            associated_token_program: self.associated_token_program.to_account_info(),
-            system_program: self.system_program.to_account_info(),
+
+        let accounts = Transfer {
+            from: self.treasury.to_account_info(),
+            to: self.signer.to_account_info(),
         };
 
-        let cpi_ctx = CpiContext::new(
-            self.treasury_program.to_account_info(),
-            cpi_accounts,
-        );
+        let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
 
-        // Pay out winnings in SOL
-        reimburse(
-            cpi_ctx,
-            winnings,
-        )
+        transfer(cpi_ctx, winnings)
+        
     }
 
     fn add_to_consolidated(&mut self) -> Result<()> {
