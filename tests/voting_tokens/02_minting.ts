@@ -83,7 +83,7 @@ describe("voting_tokens mint", () => {
         const token_balance = (await connection.getTokenAccountBalance(recipientAta)).value.uiAmount;
         expect(token_balance == amount);
 
-        console.log("Your transaction signature", tx);
+        console.log("Minting signature", tx);
 
     });
 

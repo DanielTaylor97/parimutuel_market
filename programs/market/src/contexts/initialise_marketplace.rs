@@ -15,7 +15,7 @@ use crate::error::{MintError, TreasuryError};
 #[derive(Accounts)]
 pub struct InitialiseMarketplace<'info_i> {
     #[account(mut)]
-    pub treasury: SystemAccount<'info_i>,
+    pub treasury: Signer<'info_i>,
     #[account(
         init,
         payer = treasury,

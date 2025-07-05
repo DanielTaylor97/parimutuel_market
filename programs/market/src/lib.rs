@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("EogDadUrpwu6eZuygUVnTShWTAKscYdNgAqVbspvys5T");
+declare_id!("GZStafpFtMCLyVeJCDQpo4hkcvuA3ChKnFp86oU5tETx");
 
 pub mod states;
 pub mod contexts;
@@ -17,7 +17,7 @@ pub use error::*;
 pub use constants::*;
 
 #[program]
-pub mod parimutuel_market {
+pub mod market {
     use super::*;
 
     pub fn init_marketplace(ctx: Context<InitialiseMarketplace>) -> Result<()> {

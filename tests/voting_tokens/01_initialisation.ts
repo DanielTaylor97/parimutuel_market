@@ -253,7 +253,7 @@ describe("voting_tokens init", () => {
 
       // ----- EVALUATE ------
 
-      console.log("Your transaction signature", tx);
+      console.log("Initialisation signature", tx);
 
     });
 
