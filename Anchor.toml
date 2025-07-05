@@ -5,8 +5,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-market = "B4RRsXui1VEnuaePqzw8GBzScsQiZ2oqmFqYpdg7VzMj"
-voting_tokens = "EXAy7EqgxBBvEQwLeA5mQ4BTJb8wq5giZhvy5tDaHvBX"
+market = "EogDadUrpwu6eZuygUVnTShWTAKscYdNgAqVbspvys5T"
+voting_tokens = "4EqPeR7tt5mPq4PgjS5Wa4gqNjjFDa4ATLTFL1waXaNk"
 
 [registry]
 url = "https://api.apr.dev"

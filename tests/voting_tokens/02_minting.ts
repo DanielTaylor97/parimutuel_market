@@ -33,7 +33,7 @@ describe("voting_tokens mint", () => {
   
     const log = async (signature: string): Promise<string> => {
         console.log(
-            `Your transaction signature: https://explorer.solana.com/transaction/${signature}?cluster=custom&customUrl=${connection.rpcEndpoint}`
+            `Link: https://explorer.solana.com/transaction/${signature}?cluster=custom&customUrl=${connection.rpcEndpoint}`
         );
         return signature;
     };
