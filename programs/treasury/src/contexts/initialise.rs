@@ -22,7 +22,7 @@ pub struct Initialise<'info_i> {
     )]
     pub treasury: Box<Account<'info_i, Treasury>>,
     #[account(
-        init_if_needed,
+        init,
         payer = signer,
         associated_token::mint = mint,
         associated_token::authority = treasury,

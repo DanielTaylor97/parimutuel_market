@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::{get_associated_token_address_with_program_id, AssociatedToken},
+    associated_token::{get_associated_token_address, AssociatedToken},
     token::{transfer_checked, Mint, Token, TokenAccount, TransferChecked},
 };
 
@@ -78,15 +78,13 @@ impl<'info_v> Vote<'info_v> {
             &mint_program_pk,
         ).0;
 
-        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
+        let signer_ata: Pubkey = get_associated_token_address(
              &self.signer.key(),
              &mint_pk,
-             &mint_program_pk,
         );
-        let treasury_authority_ata: Pubkey = get_associated_token_address_with_program_id(
+        let treasury_authority_ata: Pubkey = get_associated_token_address(
             &self.treasury.authority,
             &mint_pk,
-            &mint_program_pk,
         );
 
         let wagers_count_condition: bool = match self.escrow.bettors.is_some() {

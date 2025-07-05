@@ -3,7 +3,7 @@ use anchor_lang::{
     system_program::{transfer, Transfer}
 };
 use anchor_spl::{
-    associated_token::{get_associated_token_address_with_program_id, AssociatedToken},
+    associated_token::{get_associated_token_address, AssociatedToken},
     token::TokenAccount
 };
 
@@ -42,17 +42,16 @@ impl<'info_t> Transact<'info_t> {
             &[b"mint"],
             &mint_program_pk
         ).0;
-        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
-             &self.signer.key(),
+        let treasury_ata: Pubkey = get_associated_token_address(
+             &self.treasury.key(),
              &mint_pk,
-             &mint_program_pk,
         );
 
-        // Requirements:                                                            |   Implemented
-        //  - Signer should be the treasury authority                               |       √
-        //  - voting_token_account should be derivable as signer voting token ATA   |       √
+        // Requirements:                                                        |   Implemented
+        //  - Signer should be the treasury authority                           |       √
+        //  - voting_token_account should be derivable as treasury token ATA    |       √
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
-        require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
+        require!(self.voting_token_account.key() == treasury_ata, TransactionError::WrongATA);
 
         self.transfer_sol(
             self.coparty.to_account_info(),
@@ -74,22 +73,24 @@ impl<'info_t> Transact<'info_t> {
             &[b"mint"],
             &mint_program_pk
         ).0;
-        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
-             &self.signer.key(),
+        let treasury_ata: Pubkey = get_associated_token_address(
+             &self.treasury.key(),
              &mint_pk,
-             &mint_program_pk,
         );
 
-        // Requirements:                                                            |   Implemented
-        //  - Signer should be the treasury authority                               |       √
-        //  - voting_token_account should be derivable as signer voting token ATA   |       √
+        // Requirements:                                                        |   Implemented
+        //  - Signer should be the treasury authority                           |       √
+        //  - voting_token_account should be derivable as treasury token ATA    |       √
         require!(self.signer.key() == self.treasury.authority, TransactionError::SignerNotAuthority);
-        require!(self.voting_token_account.key() == signer_ata, TransactionError::WrongATA);
+        require!(self.voting_token_account.key() == treasury_ata, TransactionError::WrongATA);
+
+        let signer_seeds: &[&[&[u8]]] = &[&[b"treasury", &[self.treasury.bump]]];
 
         // Make withdrawal here
-        self.transfer_sol(
+        self.transfer_sol_with_signer(
             self.treasury.to_account_info(),
             self.coparty.to_account_info(),
+            signer_seeds,
             amount,
         )?;
         
@@ -122,6 +123,29 @@ impl<'info_t> Transact<'info_t> {
         };
 
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
+
+        transfer(cpi_ctx, amount)
+
+    }
+
+    fn transfer_sol_with_signer(
+        &self,
+        from: AccountInfo<'info_t>,
+        to: AccountInfo<'info_t>,
+        signer_seeds: &[&[&[u8]]],
+        amount: u64,
+    ) -> Result<()> {
+
+        let accounts = Transfer {
+            from,
+            to,
+        };
+
+        let cpi_ctx = CpiContext::new(
+            self.system_program.to_account_info(),
+            accounts
+        )
+        .with_signer(signer_seeds);
 
         transfer(cpi_ctx, amount)
 

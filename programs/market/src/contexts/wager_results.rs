@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::{get_associated_token_address_with_program_id, AssociatedToken},
+    associated_token::{get_associated_token_address, AssociatedToken},
     token::{Mint, Token, TokenAccount}
 };
 
@@ -86,10 +86,9 @@ impl<'info_wr> WagerResult<'info_wr> {
             &mint_program_pk,
         ).0;
 
-        let signer_ata: Pubkey = get_associated_token_address_with_program_id(
+        let signer_ata: Pubkey = get_associated_token_address(
              &self.signer.key(),
              &mint_pk,
-             &mint_program_pk,
         );
 
         let wagers_count_condition: bool = match self.escrow.bettors.is_some() {

@@ -17,6 +17,7 @@ import {
     TOKEN_PROGRAM_ID,
     getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
+import { assert, expect } from "chai";
 
 import { TreasuryProgram } from "../../target/types/treasury";
 import { VotingTokens } from "../../target/types/voting_tokens";
@@ -38,10 +39,10 @@ describe("treasury", () => {
         mintProgram.programId
       );
       
-      return mintPda[0];
+      return [mintPda[0], mintProgram.programId];
     }
   
-    const signer = Keypair.generate();
+    const [signer, coparty] = Array.from({ length: 2 }, () => Keypair.generate());
     const treasuryPda = PublicKey.findProgramAddressSync(
       [Buffer.from("treasury")],
       program.programId
@@ -68,13 +69,14 @@ describe("treasury", () => {
   
       let airdrop_tx = new Transaction();
   
-      airdrop_tx.instructions = [
-        SystemProgram.transfer({
+      airdrop_tx.instructions = Array.from(
+        [signer, coparty],
+        (kp) => SystemProgram.transfer({
           fromPubkey: provider.publicKey,
-          toPubkey: signer.publicKey,
-          lamports: 0.1*LAMPORTS_PER_SOL,
+          toPubkey: kp.publicKey,
+          lamports: 0.1*LAMPORTS_PER_SOL
         })
-      ];
+      );
   
       await provider.sendAndConfirm(airdrop_tx, []).then(log);
   
@@ -83,34 +85,91 @@ describe("treasury", () => {
 
     it("Initialises", async () => {
 
-        // ------- SETUP -------
-      
-        const mint = await mintfn();
-        const voting_token_account = getAssociatedTokenAddressSync(mint, treasuryPda[0], true);
-      
-        const init_accounts = {
-          signer: signer.publicKey,
-          treasury: treasuryPda[0],
-          voting_token_account,
-          mint,
-          token_program: TOKEN_PROGRAM_ID,
-          associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
-          system_program: SystemProgram.programId,
-        };
+      // ------- SETUP -------
+    
+      const [mint, _mintProgramId] = await mintfn();
+      const voting_token_account = getAssociatedTokenAddressSync(mint, treasuryPda[0], true);
+    
+      const init_accounts = {
+        signer: signer.publicKey,
+        treasury: treasuryPda[0],
+        voting_token_account,
+        mint,
+        token_program: TOKEN_PROGRAM_ID,
+        associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+        system_program: SystemProgram.programId,
+      };
 
 
-        // ------ EXECUTE ------
+      // ------ EXECUTE ------
 
-        const tx = await program.methods.initialise()
-            .accounts({ ...init_accounts })
-            .signers([signer])
-            .rpc()
-            .then(confirm)
-            .then(log);
+      const tx = await program.methods.initialise()
+          .accounts({ ...init_accounts })
+          .signers([signer])
+          .rpc()
+          .then(confirm)
+          .then(log);
 
 
-        // ----- EVALUATE ------
+      // ----- EVALUATE ------
 
-        console.log("Your transaction signature", tx);
+      console.log("Your transaction signature", tx);
+    });
+
+
+    it("Transacts", async () => {
+
+      // ------- SETUP -------
+    
+      const [mint, _mintProgramId] = await mintfn();
+      const voting_token_account = getAssociatedTokenAddressSync(mint, treasuryPda[0], true);
+
+      const deposit_amount = 1_000_000;
+      const withdrawal_amount = 100_000;
+    
+      const transaction_accounts = {
+        signer: signer.publicKey,
+        coparty: coparty.publicKey,
+        treasury: treasuryPda[0],
+        votingTokenAccount: voting_token_account,
+        token_program: TOKEN_PROGRAM_ID,
+        system_program: SystemProgram.programId,
+        associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+      };
+
+
+      // ------ EXECUTE ------
+
+      const deposit_tx = await program.methods.deposit(new anchor.BN(deposit_amount))
+          .accounts({ ...transaction_accounts })
+          .signers([signer, coparty])
+          .rpc()
+          .then(confirm)
+          .then(log);
+
+
+      // ----- EVALUATE ------
+
+      assert(await connection.getBalance(coparty.publicKey) == 0.1*LAMPORTS_PER_SOL - deposit_amount);
+      console.log("Deposit signature", deposit_tx);
+
+
+      // ------ EXECUTE ------
+
+      console.log(`Signer: ${signer.publicKey}`);
+      console.log(`Coparty: ${coparty.publicKey}`);
+
+      const reimburse_tx = await program.methods.reimburse(new anchor.BN(withdrawal_amount))
+          .accounts({ ...transaction_accounts })
+          .signers([signer, coparty])
+          .rpc()
+          .then(confirm)
+          .then(log);
+
+
+      // ----- EVALUATE ------
+
+      assert(await connection.getBalance(coparty.publicKey) == 0.1*LAMPORTS_PER_SOL - deposit_amount + withdrawal_amount);
+      console.log("Withdrawal signature", reimburse_tx);
     });
 });
