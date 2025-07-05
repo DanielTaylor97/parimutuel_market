@@ -9,6 +9,7 @@ use anchor_spl::{
     token::{Mint, Token},
 };
 
+use crate::constants::TREASURY_ADDRESS;
 use crate::error::InitError;
 
 #[derive(Accounts)]
@@ -51,10 +52,12 @@ impl<'info_i> Initialise<'info_i> {
     ) -> Result<()> {
 
         // Requirements:                        |   Implemented:
+        //  - Signer should be the treasury     |       √
         //  - Name is `AuthensusVotingToken`    |       √
         //  - Symbol is `AUTHVOTE`              |       √
         //  - URI should be empty               |       √
         //  - Decimals should be 9              |       √
+        require!(self.signer.key().to_string() == TREASURY_ADDRESS, InitError::WrongSigner);
         require!(metadata.name == "AuthensusVotingToken".to_string(), InitError::WrongName);
         require!(metadata.symbol == "AUTHVOTE".to_string(), InitError::WrongSymbol);
         require!(metadata.uri == "".to_string(), InitError::WrongUri);

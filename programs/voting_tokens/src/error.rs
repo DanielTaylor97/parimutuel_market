@@ -15,4 +15,7 @@ pub enum InitError {
     #[msg("Wrong number of token decimals given at initialisation")]
     WrongDecimals = 3,
 
+    #[msg("Not the expected transaction signer")]
+    WrongSigner = 4,
+
 }

@@ -46,13 +46,11 @@ impl<'info_c> CallMarket<'info_c> {
         // Requirements:                                                        |   Implemented:
         //  - Market State should be Consolidating                              |       √
         //  - escrow and poll should have the same market, which is this market |       √
-        //  - escrow and poll should have the same facet                        |       √
         //  - escrow/poll facet should be in the market facets vec              |       √
         //  - SOL has been reimbursed as necessary                              |       √
         //  - Tokens have been reimbursed as necessary                          |       √
         require!(self.market.state == MarketState::Consolidating, MarketError::MarketInWrongState);
         require!(self.market.key() == self.escrow.market && self.market.key() == self.poll.market && self.market.token == params.authensus_token, MarketError::NotTheSameMarket);
-        require!(self.escrow.facet == self.poll.facet && self.escrow.facet == params.facet, FacetError::NotTheSameFacet);
         require!(self.market.facets.contains(&self.escrow.facet), FacetError::FacetNotInMarket);
         require!(bet_consolidation, ResultsError::NotAllBetsConsolidated);
         require!(vote_consolidation, ResultsError::NotAllVotesConsolidated);
