@@ -1,3 +1,4 @@
+pub mod initialise_marketplace;
 pub mod initialise_market;
 pub mod start_market;
 pub mod wager;
@@ -6,6 +7,7 @@ pub mod wager_results;
 pub mod voter_results;
 pub mod call_market;
 
+pub use initialise_marketplace::*;
 pub use initialise_market::*;
 pub use start_market::*;
 pub use wager::*;

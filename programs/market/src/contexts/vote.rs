@@ -4,10 +4,6 @@ use anchor_spl::{
     token::{transfer_checked, Mint, Token, TokenAccount, TransferChecked},
 };
 
-use treasury::{
-    self,
-    Treasury,
-};
 use voting_tokens::{
     self,
     id as get_voting_tokens_program_id,
@@ -53,9 +49,9 @@ pub struct Vote<'info_v> {
     #[account(mut)]
     pub mint: Account<'info_v, Mint>,
     #[account(mut)]
-    pub treasury_voting_token_account: Account<'info_v, TokenAccount>,  // This should already be initialised with the treasury
+    pub treasury: SystemAccount<'info_v>,
     #[account(mut)]
-    pub treasury: Box<Account<'info_v, Treasury>>,
+    pub treasury_voting_token_account: Account<'info_v, TokenAccount>,  // This should already be initialised with the treasury
     pub system_program: Program<'info_v, System>,
     pub token_program: Program<'info_v, Token>,
     pub associated_token_program: Program<'info_v, AssociatedToken>,
@@ -107,7 +103,6 @@ impl<'info_v> Vote<'info_v> {
         //  - ATA must have sufficient tokens for this vote                             |       √
         //  - Vote amount must be higher than minimum                                   |       √
         //  - Vote amount must be lower than maximum                                    |       √
-        //  - Mint provided must be correct                                             |       √
         //  - Voter cannot have placed any bets                                         |       √
         //  - Market should contain the given facet                                     |       √
         //  - Mint PK needs to be correct                                               |       √
@@ -120,7 +115,6 @@ impl<'info_v> Vote<'info_v> {
         require!(self.voting_token_account.amount >= amount, VotingError::InsufficientVotingTokens);
         require!(amount >= MIN_VOTE_AMOUNT, VotingError::AmountTooLow);
         require!(amount <= MAX_VOTE_AMOUNT, VotingError::AmountTooHigh);
-        require!(self.mint.key() == mint_pk, VotingError::IncorrectMint);
         require!(!wagers_count_condition, VotingError::CannotVoteWithBets);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);

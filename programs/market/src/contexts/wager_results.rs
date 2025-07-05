@@ -4,13 +4,6 @@ use anchor_spl::{
     token::{Mint, Token, TokenAccount}
 };
 
-use treasury::{
-    cpi::{accounts::Transact, reimburse},
-    program::TreasuryProgram,
-    self,
-    Treasury,
-    id as get_treasury_program_id,
-};
 use voting_tokens::{
     cpi::{accounts::MintTokens, mint_tokens},
     self,

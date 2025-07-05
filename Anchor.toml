@@ -6,7 +6,6 @@ skip-lint = false
 
 [programs.localnet]
 market = "B4RRsXui1VEnuaePqzw8GBzScsQiZ2oqmFqYpdg7VzMj"
-treasury = "i7B3be3uBkdiXuWaR7oNopETpKdFYKjVaDBGiVwJiCd"
 voting_tokens = "EXAy7EqgxBBvEQwLeA5mQ4BTJb8wq5giZhvy5tDaHvBX"
 
 [registry]
@@ -18,7 +17,6 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/**/*.ts"
-test-treasury = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/treasury/*.ts"
 test-market = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/market/*.ts"
 test-voting-tokens = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/voting_tokens/*.ts"
 

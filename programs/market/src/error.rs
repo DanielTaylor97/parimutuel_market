@@ -128,14 +128,11 @@ pub enum VotingError {
     #[msg("Not enough voting tokens to make that transaction")]
     InsufficientVotingTokens = 708,
 
-    #[msg("The mint provided is not the expected mint")]
-    IncorrectMint = 709,
-
     #[msg("Voting amount too low")]
-    AmountTooLow = 710,
+    AmountTooLow = 709,
 
     #[msg("Voting amount too high")]
-    AmountTooHigh = 711,
+    AmountTooHigh = 710,
 
 }
 

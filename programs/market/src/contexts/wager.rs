@@ -3,21 +3,13 @@ use anchor_lang::{
     system_program::{transfer, Transfer}
 };
 
-use treasury::{
-    self,
-    Treasury,
-    id as get_treasury_program_id,
-};
-
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
-use crate::constants::MAX_WAGERS;
+use crate::constants::{MAX_WAGERS, TREASURY_ADDRESS};
 use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
 pub struct Wager<'info_w> {
-    #[account(mut)]
-    pub treasury_auth: Signer<'info_w>,
     #[account(mut)]
     pub signer: Signer<'info_w>,
     #[account(
@@ -41,7 +33,7 @@ pub struct Wager<'info_w> {
     )]
     pub bettor: Box<Account<'info_w, Bettor>>,
     #[account(mut)]
-    pub treasury: Box<Account<'info_w, Treasury>>,  // Should already be initialised
+    pub treasury: SystemAccount<'info_w>,
     pub system_program: Program<'info_w, System>,
 }
 
@@ -59,14 +51,8 @@ impl<'info_w> Wager<'info_w> {
 
         let wagers_count_condition: bool = match self.escrow.bettors.is_some() {
             true => self.escrow.bettors.as_ref().unwrap().len() < MAX_WAGERS.into(),
-            false => true,
+            false => true,  // Something's wrong if we don't have any bettors yet
         };
-
-        let treasury_program_pk = get_treasury_program_id();
-        let expected_treasury_address = Pubkey::find_program_address(
-            &[b"treasury"],
-            &treasury_program_pk,
-        ).0;
 
         // Requirements:                                                        |   Implemented:
         //  - Market should be in a betting state                               |       √
@@ -74,7 +60,6 @@ impl<'info_w> Wager<'info_w> {
         //  - Market should contain the given facet                             |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Bettor should not have placed any underdog bets                   |       √
-        //  - Treasury authority should be the same as treasury_auth            |       √
         //  - Treasury should have the expected address                         |       √
         //  - Current number of wagers must be less than the max                |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
@@ -82,8 +67,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
-        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury.key() == expected_treasury_address, TreasuryError::WrongTreasury);
+        require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
         require!(wagers_count_condition, BettingError::TooManyBettors);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
@@ -94,7 +78,7 @@ impl<'info_w> Wager<'info_w> {
             return Ok(())
         }
 
-        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
+        self.receive_sol_wager(amount)?;
 
         let amount_for: u64 = match direction {
             true => amount,
@@ -102,6 +86,16 @@ impl<'info_w> Wager<'info_w> {
         };
         
         let amount_against: u64 = amount - amount_for;
+
+        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
+
+        if !bettors_clone.contains(&self.signer.key()) {
+            bettors_clone.push(self.signer.key());
+            self.escrow.bettors = Some(bettors_clone.clone());
+        }
+
+        self.escrow.tot_for += amount_for;
+        self.escrow.tot_against += amount_against;
 
         if self.bettor.tot_against == 0 && self.bettor.tot_against == 0 {
             self.bettor.set_inner(
@@ -119,16 +113,6 @@ impl<'info_w> Wager<'info_w> {
             self.bettor.tot_for += amount_for;
             self.bettor.tot_against += amount_against;
         }
-
-        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
-
-        if !bettors_clone.contains(&self.signer.key()) {
-            bettors_clone.push(self.signer.key());
-            self.escrow.bettors = Some(bettors_clone.clone());
-        }
-
-        self.escrow.tot_for += amount_for;
-        self.escrow.tot_against += amount_against;
         
         Ok(())
 
@@ -165,7 +149,16 @@ impl<'info_w> Wager<'info_w> {
             return Ok(())
         }
 
-        self.receive_sol_wager(self.signer.to_account_info(), amount)?;
+        self.receive_sol_wager(amount)?;
+
+        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
+
+        if !bettors_clone.contains(&self.signer.key()) {
+            bettors_clone.push(self.signer.key());
+            self.escrow.bettors = Some(bettors_clone.clone());
+        }
+
+        self.escrow.tot_underdog += amount;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(
@@ -182,25 +175,16 @@ impl<'info_w> Wager<'info_w> {
         } else {
             self.bettor.tot_underdog += amount;
         }
-
-        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
-
-        if !bettors_clone.contains(&self.signer.key()) {
-            bettors_clone.push(self.signer.key());
-            self.escrow.bettors = Some(bettors_clone.clone());
-        }
-
-        self.escrow.tot_underdog += amount;
         
         Ok(())
 
     }
 
-    fn receive_sol_wager(&self, from: AccountInfo<'info_w>, amount: u64) -> Result<()> {
+    fn receive_sol_wager(&self, amount: u64) -> Result<()> {
 
         let accounts = Transfer {
-            from,
-            to: self.treasury_auth.to_account_info(),
+            from: self.signer.to_account_info(),
+            to: self.treasury.to_account_info(),
         };
 
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);

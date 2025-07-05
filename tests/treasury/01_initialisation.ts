@@ -1,3 +1,5 @@
+/*
+
 // As this is currently implemented, initialising the token mint in-line, we cannot run it in parallel with the voting_tokens tests.
 // One way of getting around this is to run the tests by launching a local test validator
 // ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
@@ -173,3 +175,5 @@ describe("treasury", () => {
       console.log("Withdrawal signature", reimburse_tx);
     });
 });
+
+*/

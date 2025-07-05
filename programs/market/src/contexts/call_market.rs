@@ -50,14 +50,12 @@ impl<'info_c> CallMarket<'info_c> {
         //  - escrow/poll facet should be in the market facets vec              |       √
         //  - SOL has been reimbursed as necessary                              |       √
         //  - Tokens have been reimbursed as necessary                          |       √
-        //  - Admin should be the treasury authority                            |
         require!(self.market.state == MarketState::Consolidating, MarketError::MarketInWrongState);
         require!(self.market.key() == self.escrow.market && self.market.key() == self.poll.market && self.market.token == params.authensus_token, MarketError::NotTheSameMarket);
         require!(self.escrow.facet == self.poll.facet && self.escrow.facet == params.facet, FacetError::NotTheSameFacet);
         require!(self.market.facets.contains(&self.escrow.facet), FacetError::FacetNotInMarket);
         require!(bet_consolidation, ResultsError::NotAllBetsConsolidated);
         require!(vote_consolidation, ResultsError::NotAllVotesConsolidated);
-        // require!(self.admin.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasury);
 
         // Set market inactive
         self.market.state = MarketState::Inactive;

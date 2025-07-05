@@ -20,6 +20,10 @@ pub use constants::*;
 pub mod parimutuel_market {
     use super::*;
 
+    pub fn init_marketplace(ctx: Context<InitialiseMarketplace>) -> Result<()> {
+        ctx.accounts.init_marketplace()
+    }
+
     pub fn initialise_market(
         ctx: Context<InitialiseMarket>,
         authensus_token: Pubkey,
