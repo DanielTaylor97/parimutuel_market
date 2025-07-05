@@ -1,13 +1,14 @@
-// As this is currently implemented we cannot run it in parallel with the other tests as they require their own initialisations of
-// the token mint. One way of getting around this is to run the tests by launching a local test validator
-// ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
-// and using
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-voting-tokens```
-// to run only the tests in the tests/voting_tokens folder (check Anchor.toml for implementation of that instrustion).
-// This does no building/deploying on its own, so those instructions must be executed separately:
+// As this is currently implemented we cannot run it in parallel with the market tests as they require the mint already to have been initialised.
+// We can get around this by running test suites one at a time with ```anchor run test``` on a validator node run in the background.
+// Full set of commands in order from deletion of `target` folder, or first build:
 // ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor build --no-idl```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p market -o target/idl/market.json -t target/types/market.ts```
 // ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p voting_tokens -o target/idl/voting_tokens.json -t target/types/voting_tokens.ts```
+// ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
+// [separate terminal]
 // ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor deploy```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-voting-tokens```
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-market```
 
 
 import { readFileSync } from "fs";
