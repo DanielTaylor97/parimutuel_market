@@ -102,6 +102,7 @@ impl<'info_vr> VoterResult<'info_vr> {
         //  - Mint PK needs to be correct                                                                       |       √
         //  - Voting Tokens Program needs to be correct                                                         |       √
         //  - treasury_voting_token_account should be derivable from treasury account                           |       √
+        //  - Market call_time must now exist                                                                   |       √
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
         require!(vote_condition, ResultsError::NotAVoter);
         require!(self.voter.amount > 0, ResultsError::VoterAlreadyConsolidated);
@@ -112,6 +113,7 @@ impl<'info_vr> VoterResult<'info_vr> {
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
         require!(self.voting_tokens_program.key() == mint_program_pk, MintError::NotTheRightMintProgramPK);
         require!(treasury_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
+        require!(self.market.call_time.is_some(), ResultsError::NoCallTime);
 
         if self.poll.total_for == self.poll.total_against {
             return self.voting_tie();
@@ -128,6 +130,9 @@ impl<'info_vr> VoterResult<'info_vr> {
         // Reset vote amount and signature
         self.voter.amount = 0_u64;
         self.voter.vote_signed = None;
+
+        // Increment the number of consolidated votes
+        self.poll.total_consolidated += 1;
 
         if winnings == 0 {
             return Ok(())

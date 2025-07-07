@@ -63,7 +63,7 @@ impl<'info_w> Wager<'info_w> {
         //  - Bettor should not have placed any underdog bets                   |       √
         //  - Treasury should have the expected address                         |       √
         //  - Provided message must be signed by the treasury account           |       √
-        //  - Current number of wagers must be less than the max                |       
+        //  - Current number of wagers must be less than the max                |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -71,7 +71,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
-        require!(wagers_count_condition, BettingError::TooManyBettors);
+        require!(self.escrow.n_bets < MAX_WAGERS, BettingError::TooManyBettors);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
@@ -91,6 +91,9 @@ impl<'info_w> Wager<'info_w> {
 
         self.escrow.tot_for += amount_for;
         self.escrow.tot_against += amount_against;
+
+        // Increment the number of bets
+        self.escrow.n_bets += 1;
 
         if self.bettor.tot_against == 0 && self.bettor.tot_against == 0 {
             self.bettor.set_inner(
@@ -133,6 +136,7 @@ impl<'info_w> Wager<'info_w> {
         //  - At least some normal bets have already been placed                            |       √
         //  - No other bets should have been placed by this bettor already in this market   |       √
         //  - Provided message must be signed by the treasury account                       |       √
+        //  - Current number of wagers must be less than the max                            |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -140,6 +144,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
         require!(self.bettor.tot_for + self.bettor.tot_against == 0, BettingError::UnderdogWithOtherBet);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
+        require!(self.escrow.n_bets < MAX_WAGERS, BettingError::TooManyBettors);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
@@ -152,6 +157,9 @@ impl<'info_w> Wager<'info_w> {
         self.receive_sol_wager(amount)?;
 
         self.escrow.tot_underdog += amount;
+
+        // Increment the number of bets
+        self.escrow.n_bets += 1;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(

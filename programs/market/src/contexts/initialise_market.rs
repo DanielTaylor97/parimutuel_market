@@ -45,6 +45,7 @@ impl<'info_i> InitialiseMarket<'info_i> {
                 facets,                             // Vec<Facet>
                 start_time: 0_i64,                  // i64
                 timeout,                            // i64
+                call_time: None,                    // Option<i64>
                 state: MarketState::Initialised,    // MarketState
                 round: 0_u16,                       // u16
             }

@@ -45,6 +45,7 @@ pub mod market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.start(
@@ -56,7 +57,8 @@ pub mod market {
             &ctx.bumps,
             &params,
             amount,
-            direction
+            direction,
+            signed_message,
         )
 
     }
@@ -66,6 +68,7 @@ pub mod market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.place_wager(
@@ -73,6 +76,7 @@ pub mod market {
             &params,
             amount,
             direction,
+            signed_message,
         )
 
     }
@@ -81,12 +85,14 @@ pub mod market {
         ctx: Context<Wager>,
         params: MarketParams,
         amount: u64,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.underdog_bet(
             &ctx.bumps,
             &params,
-            amount
+            amount,
+            signed_message,
         )
         
     }
@@ -96,13 +102,15 @@ pub mod market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.add_vote(
             &ctx.bumps,
             &params,
             amount,
-            direction
+            direction,
+            signed_message,
         )
         
     }

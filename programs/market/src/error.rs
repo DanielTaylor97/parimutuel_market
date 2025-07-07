@@ -172,4 +172,7 @@ pub enum ResultsError {
     #[msg("Not all of the votes have been consolidated")]
     NotAllVotesConsolidated = 809,
 
+    #[msg("Market has not been assigned a call time")]
+    NoCallTime = 810,
+
 }

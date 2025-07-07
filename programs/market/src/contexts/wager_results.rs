@@ -14,7 +14,7 @@ use voting_tokens::{
     id as get_voting_tokens_program_id,
 };
 
-use crate::constants::{PERCENTAGE_WINNINGS_KEPT, TREASURY_ADDRESS, VOTE_THRESHOLD};
+use crate::constants::{MAX_CONSOLIDATION_PERIOD, PERCENTAGE_WINNINGS_KEPT, TREASURY_ADDRESS, VOTE_THRESHOLD};
 use crate::error::{FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 use crate::utils::functions::{compute_returns, verify_signature};
@@ -117,6 +117,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         // Change the market state if necessary
         if self.market.state == MarketState::Voting {
             self.market.state = MarketState::Consolidating;
+            self.market.call_time = Some(Clock::get()?.unix_timestamp + MAX_CONSOLIDATION_PERIOD);
         }
 
         if self.poll.total_for == self.poll.total_against {
@@ -140,6 +141,9 @@ impl<'info_wr> WagerResult<'info_wr> {
         self.bettor.tot_against = 0_u64;
         self.bettor.tot_underdog = 0_u64;
         self.bettor.bets_signed = None;
+
+        // Increment the number of consolidated votes
+        self.escrow.bets_consolidated += 1;
 
         if bet_returned == 0 {
             return Ok(())

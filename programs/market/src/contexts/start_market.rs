@@ -67,23 +67,21 @@ impl<'info_s> StartMarket<'info_s> {
 
         self.escrow.set_inner(
             Escrow {
-                bump: bumps.escrow,             // u8
-                // initialiser: self.signer.key(), // Pubkey
-                // market: params.authensus_token, // Pubkey
-                // facet: params.facet.clone(),    // Facet
-                tot_for: 0_u64,                 // u64
-                tot_against: 0_u64,             // u64
-                tot_underdog: 0_u64             // u64
+                bump: bumps.escrow,         // u8
+                n_bets: 0_u16,              // u16
+                bets_consolidated: 0_u16,   // u16
+                tot_for: 0_u64,             // u64
+                tot_against: 0_u64,         // u64
+                tot_underdog: 0_u64         // u64
             }
         );
 
         self.poll.set_inner(
             Poll {
-                bump: bumps.poll,               // u8
-                // market: params.authensus_token, // Pubkey
-                // facet: params.facet.clone(),    // Facet
-                total_for: 0_u16,               // u16
-                total_against: 0_u16,           // u16
+                bump: bumps.poll,           // u8
+                total_for: 0_u16,           // u16
+                total_against: 0_u16,       // u16
+                total_consolidated: 0_u16,  // u16
             }
         );
 
@@ -133,6 +131,7 @@ impl<'info_s> StartMarket<'info_s> {
 
         self.escrow.tot_for = tot_for;
         self.escrow.tot_against = tot_against;
+        self.escrow.n_bets = 1;
 
         self.initialiser.set_inner(
             Bettor {
