@@ -17,7 +17,7 @@ use voting_tokens::{
 use crate::constants::TREASURY_ADDRESS;
 use crate::error::{FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Market, MarketParams, MarketState, Poll, Voter};
-use crate::utils::functions::calc_winnings_from_votes;
+use crate::utils::functions::{calc_winnings_from_votes, verify_signature};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -78,19 +78,22 @@ impl<'info_vr> VoterResult<'info_vr> {
             &mint_pk,
         );
 
-        let voters_count_condition: bool = match self.poll.voters.is_some() {
-            true => self.poll.voters.as_ref().unwrap().contains(&self.signer.key()),
-            false => false,
+        let numerical_direction: &str = match self.voter.direction {
+            true => "for",
+            false => "against"
         };
-
-        let consolidated_voters_condition: bool = match self.poll.voters_consolidated.is_some() {
-            true => self.poll.voters_consolidated.as_ref().unwrap().contains(&self.signer.key()),
-            false => false,
-        };
+        let vote_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + numerical_direction;
+        let vote_message: &[u8] = vote_message_str.as_bytes();
+        let vote_condition: bool;
+        if let Some(signature) = self.voter.vote_signed {
+            vote_condition = verify_signature(signature, vote_message);
+        } else {
+            vote_condition = false;
+        }
 
         // Requirements:                                                                                        |   Implemented:
         //  - Market should now be in the consolidation state (i.e. should only be called after wager results)  |       √
-        //  - The person should be a voter in the poll                                                          |       √
+        //  - The vote is legitimate (signed by the treasury)                                                   |       √
         //  - The person should not yet have had their votes consolidated                                       |       √
         //  - Market should contain the given facet                                                             |       √
         //  - The token must be the same as that which instantiated the market                                  |       √
@@ -100,8 +103,8 @@ impl<'info_vr> VoterResult<'info_vr> {
         //  - Voting Tokens Program needs to be correct                                                         |       √
         //  - treasury_voting_token_account should be derivable from treasury account                           |       √
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
-        require!(voters_count_condition, ResultsError::NotAVoter);
-        require!(!consolidated_voters_condition, ResultsError::VoterAlreadyConsolidated);
+        require!(vote_condition, ResultsError::NotAVoter);
+        require!(self.voter.amount > 0, ResultsError::VoterAlreadyConsolidated);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
@@ -109,8 +112,6 @@ impl<'info_vr> VoterResult<'info_vr> {
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
         require!(self.voting_tokens_program.key() == mint_program_pk, MintError::NotTheRightMintProgramPK);
         require!(treasury_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
-
-        self.add_to_consolidated()?;
 
         if self.poll.total_for == self.poll.total_against {
             return self.voting_tie();
@@ -124,8 +125,9 @@ impl<'info_vr> VoterResult<'info_vr> {
             self.voter.amount,
         );
 
-        // Reset vote amount
+        // Reset vote amount and signature
         self.voter.amount = 0_u64;
+        self.voter.vote_signed = None;
 
         if winnings == 0 {
             return Ok(())
@@ -142,8 +144,9 @@ impl<'info_vr> VoterResult<'info_vr> {
         // In the case of a tie everyone gets their votes tokens re-minted
         self.reimburse_votes(self.voting_token_account.to_account_info(), self.voter.amount)?;
 
-        // Reset vote amount
+        // Reset vote amount and signature
         self.voter.amount = 0_u64;
+        self.voter.vote_signed = None;
 
         Ok(())
 
@@ -193,24 +196,6 @@ impl<'info_vr> VoterResult<'info_vr> {
 
         transfer(cpi_ctx, winnings)
         
-    }
-
-    fn add_to_consolidated(&mut self) -> Result<()> {
-
-        if self.poll.voters_consolidated.is_some() {
-
-            let mut consolidated_vec: Vec<Pubkey> = self.poll.voters_consolidated.clone().unwrap();
-            consolidated_vec.push(self.signer.key());
-            
-            self.poll.voters_consolidated = Some(consolidated_vec.clone());
-
-        } else {
-            
-            self.poll.voters_consolidated = Some(Vec::from([self.signer.key()]));
-
-        }
-
-        Ok(())
     }
 
 }

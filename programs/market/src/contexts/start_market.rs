@@ -2,7 +2,8 @@ use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 use crate::constants::TREASURY_ADDRESS;
-use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError, VotingError};
+use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError};
+use crate::utils::functions::verify_signature;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -56,14 +57,10 @@ impl<'info_s> StartMarket<'info_s> {
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Market must either be in an initialised state or inactive         |       √
-        //  - There should be no bettors and no bets in the escrow              |       √
-        //  - There should be no voters and no votes in the poll                |       √
         //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.market.state == MarketState::Initialised || self.market.state == MarketState::Inactive, MarketError::MarketInWrongState);
-        require!(self.escrow.bettors == None && self.escrow.bettors_consolidated == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
-        require!(self.poll.voters == None && self.poll.voters_consolidated == None && self.poll.total_for + self.poll.total_against == 0, VotingError::StartingWithVotesInPlace);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
 
         let start_time = Clock::get()?.unix_timestamp;
@@ -71,11 +68,9 @@ impl<'info_s> StartMarket<'info_s> {
         self.escrow.set_inner(
             Escrow {
                 bump: bumps.escrow,             // u8
-                initialiser: self.signer.key(), // Pubkey
-                market: params.authensus_token, // Pubkey
-                facet: params.facet.clone(),    // Facet
-                bettors: None,                  // Option<Vec<Pubkey>>
-                bettors_consolidated: None,     // Option<Vec<Pubkey>>
+                // initialiser: self.signer.key(), // Pubkey
+                // market: params.authensus_token, // Pubkey
+                // facet: params.facet.clone(),    // Facet
                 tot_for: 0_u64,                 // u64
                 tot_against: 0_u64,             // u64
                 tot_underdog: 0_u64             // u64
@@ -85,10 +80,8 @@ impl<'info_s> StartMarket<'info_s> {
         self.poll.set_inner(
             Poll {
                 bump: bumps.poll,               // u8
-                market: params.authensus_token, // Pubkey
-                facet: params.facet.clone(),    // Facet
-                voters: None,                   // Option<Vec<Pubkey>>
-                voters_consolidated: None,      // Option<Vec<Pubkey>>
+                // market: params.authensus_token, // Pubkey
+                // facet: params.facet.clone(),    // Facet
                 total_for: 0_u16,               // u16
                 total_against: 0_u16,           // u16
             }
@@ -108,22 +101,25 @@ impl<'info_s> StartMarket<'info_s> {
         params: &MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
+
+        let total = (self.initialiser.tot_for + self.initialiser.tot_against + self.initialiser.tot_underdog + amount).to_string();
+        let wager_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + &total;
+        let wager_message: &[u8] = wager_message_str.as_bytes();
 
         // Requirements:                                                        |   Implemented:
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
-        //  - There should be no bottors and no bets in the escrow              |       √
+        //  - Provided message must be signed by the treasury account           |       √
         //  - Initialiser should have sufficient funds to make the bet          |       √
         //  - Market should now be in a betting state                           |       √
-        //  - There should be no voters and no votes in the poll                |       √
         //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
-        require!(self.escrow.bettors == None && self.escrow.bettors_consolidated == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
+        require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
         require!(self.initialiser.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.poll.voters == None && self.poll.voters_consolidated == None && self.poll.total_for + self.poll.total_against == 0, VotingError::StartingWithVotesInPlace);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
 
         self.receive_sol_start(amount)?;
@@ -135,19 +131,16 @@ impl<'info_s> StartMarket<'info_s> {
         
         let tot_against = amount - tot_for;
 
-        self.escrow.bettors = Some(Vec::from([self.signer.key()]));
         self.escrow.tot_for = tot_for;
         self.escrow.tot_against = tot_against;
 
         self.initialiser.set_inner(
             Bettor {
-                bump: bumps.initialiser,                    // u8
-                pk: self.signer.to_account_info().key(),    // Pubkey
-                market: self.escrow.market,                 // Pubkey
-                facet: self.escrow.facet.clone(),           // Facet
-                tot_for,                                    // u64
-                tot_against,                                // u64
-                tot_underdog: 0_u64,                        // u64
+                bump: bumps.initialiser,            // u8
+                tot_for,                            // u64
+                tot_against,                        // u64
+                tot_underdog: 0_u64,                // u64
+                bets_signed: Some(signed_message),  // Option<[u8; 64]>
             }
         );
 

@@ -37,6 +37,9 @@ pub enum TreasuryError {
     #[msg("The account supplied is not for the Treasury Program")]
     NotTheRightTreasuryProgramPK = 202,
 
+    #[msg("The provided message is not validly signed by the treasury")]
+    MessageNotValid = 203,
+
 }
 
 #[error_code]

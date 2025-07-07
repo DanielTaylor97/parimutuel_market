@@ -6,6 +6,7 @@ use anchor_lang::{
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
 use crate::constants::{MAX_WAGERS, TREASURY_ADDRESS};
 use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
+use crate::utils::functions::verify_signature;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -45,14 +46,14 @@ impl<'info_w> Wager<'info_w> {
         params: &MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
 
-        let wagers_count_condition: bool = match self.escrow.bettors.is_some() {
-            true => self.escrow.bettors.as_ref().unwrap().len() < MAX_WAGERS.into(),
-            false => true,  // Something's wrong if we don't have any bettors yet
-        };
+        let total = (self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog + amount).to_string();
+        let wager_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + &total;
+        let wager_message: &[u8] = wager_message_str.as_bytes();
 
         // Requirements:                                                        |   Implemented:
         //  - Market should be in a betting state                               |       √
@@ -61,13 +62,15 @@ impl<'info_w> Wager<'info_w> {
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Bettor should not have placed any underdog bets                   |       √
         //  - Treasury should have the expected address                         |       √
-        //  - Current number of wagers must be less than the max                |       √
+        //  - Provided message must be signed by the treasury account           |       √
+        //  - Current number of wagers must be less than the max                |       
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
+        require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
         require!(wagers_count_condition, BettingError::TooManyBettors);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
@@ -84,15 +87,7 @@ impl<'info_w> Wager<'info_w> {
             true => amount,
             false => 0_u64
         };
-        
         let amount_against: u64 = amount - amount_for;
-
-        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
-
-        if !bettors_clone.contains(&self.signer.key()) {
-            bettors_clone.push(self.signer.key());
-            self.escrow.bettors = Some(bettors_clone.clone());
-        }
 
         self.escrow.tot_for += amount_for;
         self.escrow.tot_against += amount_against;
@@ -100,13 +95,11 @@ impl<'info_w> Wager<'info_w> {
         if self.bettor.tot_against == 0 && self.bettor.tot_against == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    bump: bumps.bettor,             // u8
-                    pk: self.signer.key(),          // Pubkey
-                    market: params.authensus_token, // Pubkey
-                    facet: params.facet.clone(),    // Facet
-                    tot_for: amount_for,            // u64
-                    tot_against: amount_against,    // u64
-                    tot_underdog: 0_u64             // u64
+                    bump: bumps.bettor,                 // u8
+                    tot_for: amount_for,                // u64
+                    tot_against: amount_against,        // u64
+                    tot_underdog: 0_u64,                // u64
+                    bets_signed: Some(signed_message),  // Option<[u8, 64]>
                 }
             );
         } else {
@@ -123,9 +116,14 @@ impl<'info_w> Wager<'info_w> {
         bumps: &WagerBumps,
         params: &MarketParams,
         amount: u64,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         let time: i64 = Clock::get()?.unix_timestamp;
+
+        let total = (self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog + amount).to_string();
+        let wager_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + &total;
+        let wager_message: &[u8] = wager_message_str.as_bytes();
 
         // Requirements:                                                                    |   Implemented:
         //  - Market should be in a betting state                                           |       √
@@ -134,12 +132,14 @@ impl<'info_w> Wager<'info_w> {
         //  - The token must be the same as that which instantiated the market              |       √
         //  - At least some normal bets have already been placed                            |       √
         //  - No other bets should have been placed by this bettor already in this market   |       √
+        //  - Provided message must be signed by the treasury account                       |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);
         require!(self.bettor.tot_for + self.bettor.tot_against == 0, BettingError::UnderdogWithOtherBet);
+        require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
@@ -151,25 +151,16 @@ impl<'info_w> Wager<'info_w> {
 
         self.receive_sol_wager(amount)?;
 
-        let bettors_clone = &mut self.escrow.bettors.clone().unwrap();
-
-        if !bettors_clone.contains(&self.signer.key()) {
-            bettors_clone.push(self.signer.key());
-            self.escrow.bettors = Some(bettors_clone.clone());
-        }
-
         self.escrow.tot_underdog += amount;
 
         if self.bettor.tot_underdog == 0 {
             self.bettor.set_inner(
                 Bettor {
-                    bump: bumps.bettor,             // u8
-                    pk: self.signer.key(),          // Pubkey
-                    market: params.authensus_token, // Pubkey
-                    facet: params.facet.clone(),    // Facet
-                    tot_for: 0_u64,                 // u64
-                    tot_against: 0_u64,             // u64
-                    tot_underdog: amount,           // u64
+                    bump: bumps.bettor,                 // u8
+                    tot_for: 0_u64,                     // u64
+                    tot_against: 0_u64,                 // u64
+                    tot_underdog: amount,               // u64
+                    bets_signed: Some(signed_message),  // Option<[u8; 64]>
                 }
             );
         } else {

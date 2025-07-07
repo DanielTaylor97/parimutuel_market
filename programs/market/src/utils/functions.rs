@@ -1,4 +1,15 @@
-use crate::constants::DIV_BUFFER;
+use solana_sdk::signature::Signature;
+
+use crate::constants::{DIV_BUFFER, TREASURY_ADDRESS};
+
+// TODO: UNIT TEST THIS BITCH
+pub fn verify_signature(signed_message: [u8; 64], message: &[u8]) -> bool {
+
+    let signature: Signature = Signature::from(signed_message);
+
+    signature.verify(TREASURY_ADDRESS.as_bytes(), message)
+
+}
 
 pub fn compute_returns(
     direction: bool,

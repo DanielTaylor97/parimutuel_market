@@ -17,7 +17,7 @@ use voting_tokens::{
 use crate::constants::{PERCENTAGE_WINNINGS_KEPT, TREASURY_ADDRESS, VOTE_THRESHOLD};
 use crate::error::{FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
-use crate::utils::functions::compute_returns;
+use crate::utils::functions::{compute_returns, verify_signature};
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -84,19 +84,19 @@ impl<'info_wr> WagerResult<'info_wr> {
              &mint_pk,
         );
 
-        let wagers_count_condition: bool = match self.escrow.bettors.is_some() {
-            true => self.escrow.bettors.as_ref().unwrap().contains(&self.signer.key()),
-            false => false,
-        };
-
-        let consolidated_bettors_condition: bool = match self.escrow.bettors_consolidated.is_some() {
-            true => self.escrow.bettors_consolidated.as_ref().unwrap().contains(&self.signer.key()),
-            false => false,
-        };
+        let total = (self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog).to_string();
+        let wager_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + &total;
+        let wager_message: &[u8] = wager_message_str.as_bytes();
+        let bets_condition: bool;
+        if let Some(signature) = self.bettor.bets_signed {
+            bets_condition = verify_signature(signature, wager_message);
+        } else {
+            bets_condition = false;
+        }
 
         // Requirements:                                                        |   Implemented:
         //  - Voting is finished                                                |       √
-        //  - Given address is a bettor                                         |       √
+        //  - Bets are ligitimate (signed by treasury)                          |       √
         //  - The person should not yet have had their votes consolidated       |       √
         //  - Market should contain the given facet                             |       √
         //  - The token must be the same as that which instantiated the market  |       √
@@ -105,16 +105,14 @@ impl<'info_wr> WagerResult<'info_wr> {
         //  - Mint account ID needs to be correct                               |       √
         //  - Voting Tokens Program needs to be correct                         |       √
         require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
-        require!(wagers_count_condition, ResultsError::NotABettor);
-        require!(!consolidated_bettors_condition, ResultsError::BettorAlreadyConsolidated);
+        require!(bets_condition, TreasuryError::MessageNotValid);
+        require!(self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog > 0, ResultsError::BettorAlreadyConsolidated);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
         require!(signer_ata == self.recipient.key(), VotingError::IncorrectATA);
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
         require!(self.voting_tokens_program.key() == get_voting_tokens_program_id(), MintError::NotTheRightMintProgramPK);
-
-        self.add_to_consolidated()?;
 
         // Change the market state if necessary
         if self.market.state == MarketState::Voting {
@@ -137,10 +135,11 @@ impl<'info_wr> WagerResult<'info_wr> {
             self.bettor.tot_underdog,
         );
 
-        // Reset bettor account numbers
+        // Reset bettor account numbers and signature
         self.bettor.tot_for = 0_u64;
         self.bettor.tot_against = 0_u64;
         self.bettor.tot_underdog = 0_u64;
+        self.bettor.bets_signed = None;
 
         if bet_returned == 0 {
             return Ok(())
@@ -166,11 +165,12 @@ impl<'info_wr> WagerResult<'info_wr> {
 
         let total_bets = self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog;
 
-        // Reset bettor account numbers
+        // Reset bettor account numbers and signature
         self.bettor.tot_for = 0_u64;
         self.bettor.tot_against = 0_u64;
         self.bettor.tot_underdog = 0_u64;
-        
+        self.bettor.bets_signed = None;
+
         self.reimburse_sol_wager(total_bets)
 
     }
@@ -227,24 +227,6 @@ impl<'info_wr> WagerResult<'info_wr> {
 
         Ok(())
         
-    }
-
-    fn add_to_consolidated(&mut self) -> Result<()> {
-
-        if self.escrow.bettors_consolidated.is_some() {
-            
-            let mut consolidated_vec: Vec<Pubkey> = self.escrow.bettors_consolidated.clone().unwrap();
-            consolidated_vec.push(self.signer.key());
-            
-            self.escrow.bettors_consolidated = Some(consolidated_vec.clone());
-
-        } else {
-
-            self.escrow.bettors_consolidated = Some(Vec::from([self.signer.key()]));
-
-        }
-
-        Ok(())
     }
 
 }
