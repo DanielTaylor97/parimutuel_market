@@ -1,6 +1,10 @@
 // GENERAL
 pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;    // Number of Lamports in one SOL
 pub const TREASURY_ADDRESS: &str = "authZLKSUerhcGyPPG7fnaqWkEfB9nnAc9JoiSiEy4u";
+pub const TREASURY_ADDRESS_BYTES: [u8; 32] = [
+    8,  175,    248,    157,    214,    175,    77,     48,     176,    63,     215,    219,    204,    180,    68,     246,
+    42, 178,    13,     102,    163,    28,     178,    210,    206,    145,    77,     76,     59,     50,     145,    58,
+];
 
 // WAGERS
 pub const MAX_ALLOWED_TIMEOUT: i64 = 14*24*60*60*1_000; // 2 weeks (ms)

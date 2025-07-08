@@ -2,12 +2,13 @@ import { readFileSync } from "fs";
 import { homedir } from "os";
 import path from "path";
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { AnchorError, Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, type GetVersionedTransactionConfig } from "@solana/web3.js";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
 
-import {assert } from "chai";
+import {assert, expect } from "chai";
 
 import { Market } from "../../target/types/market";
 import { VotingTokens } from "../../target/types/voting_tokens";

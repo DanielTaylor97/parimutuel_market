@@ -1,13 +1,21 @@
-use solana_sdk::signature::Signature;
-
-use crate::constants::{DIV_BUFFER, TREASURY_ADDRESS};
+use crate::constants::DIV_BUFFER;
 
 // TODO: UNIT TEST THIS BITCH
-pub fn verify_signature(signed_message: [u8; 64], message: &[u8]) -> bool {
+pub fn verify_signature(_signed_message: [u8; 64], _message: &[u8]) -> bool {
 
-    let signature: Signature = Signature::from(signed_message);
+    // TODO: FIND A WAY TO IMPLEMENT THIS!!
 
-    signature.verify(TREASURY_ADDRESS.as_bytes(), message)
+    // if let Ok(signature) = Signature::from_bytes(&signed_message) {
+    //     if let Ok(treasury_pk) = PublicKey::from_bytes(&TREASURY_ADDRESS_BYTES) {
+    //         if let Ok(_verified) = treasury_pk.verify_strict(message, &signature) {
+    //             return true
+    //         }
+    //     }
+    // }
+
+    // false
+
+    true
 
 }
 
@@ -70,6 +78,24 @@ pub fn vec_eq<T: std::cmp::Ord>(
 #[cfg(test)]
 mod test_functions {
     use super::*;
+
+    // use std::str::FromStr;
+    // use anchor_lang::prelude::*;
+    // use crate::constants::TREASURY_ADDRESS;
+
+    // #[test]
+    // fn output_treasury_address_as_bytes() {
+
+    //     if let Ok(treasury_anchor_pk) = Pubkey::from_str(TREASURY_ADDRESS) {
+    //         println!("Daniel1");
+    //         let map = treasury_anchor_pk.as_ref(); // .iter().map(|&b| println!("{:?}", b));
+    //         for (i, &b) in map.iter().enumerate() {
+    //             println!("{:?}, {:?}", i, b);
+    //         }
+    //         println!("Daniel2");
+    //     }
+
+    // }
 
     #[test]
     fn test_compute_returns() {

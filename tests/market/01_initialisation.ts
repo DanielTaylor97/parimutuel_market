@@ -19,7 +19,7 @@ import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {assert, expect } from "chai";
 
-import { ParimutuelMarket } from "../../target/types/market";
+import { Market } from "../../target/types/market";
 import { VotingTokens } from "../../target/types/voting_tokens";
 
 describe("market", () => {
@@ -27,7 +27,7 @@ describe("market", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider();
   const connection = provider.connection;
-  const program = anchor.workspace.Market as Program<ParimutuelMarket>;
+  const program = anchor.workspace.Market as Program<Market>;
 
   // Function to read keypair from file
   function loadKeypairFromFile(filePath: string): Keypair {
