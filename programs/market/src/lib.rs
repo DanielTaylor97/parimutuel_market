@@ -143,4 +143,23 @@ pub mod market {
         )
 
     }
+
+    pub fn query_escrow(
+        ctx: Context<QueryEscrow>,
+        params: MarketParams,
+    ) -> Result<u64> {
+        ctx.accounts.query_escrow(
+            &params,
+        )
+    }
+
+    pub fn query_poll(
+        ctx: Context<QueryPoll>,
+        params: MarketParams,
+    ) -> Result<u16> {
+        ctx.accounts.query_poll(
+            &params,
+        )
+    }
+
 }

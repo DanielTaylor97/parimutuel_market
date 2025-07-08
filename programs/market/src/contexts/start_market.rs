@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
-use crate::constants::TREASURY_ADDRESS;
+use crate::constants::{MIN_WAGER, TREASURY_ADDRESS};
 use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError};
 use crate::utils::functions::verify_signature;
 
@@ -113,12 +113,14 @@ impl<'info_s> StartMarket<'info_s> {
         //  - Signer should have sufficient funds to make the bet               |       √
         //  - Market should now be in a betting state                           |       √
         //  - Treasury should have the expected address                         |       √
+        //  - Wager should be greater than the minimum                          |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
         require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
+        require!(amount >= MIN_WAGER, BettingError::BetTooLow);
 
         self.receive_sol_start(amount)?;
 

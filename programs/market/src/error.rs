@@ -99,6 +99,9 @@ pub enum BettingError {
     #[msg("Too many bettors in the market")]
     TooManyBettors = 607,
 
+    #[msg("Bet too low")]
+    BetTooLow = 608,
+
 }
 
 #[error_code]

@@ -4,7 +4,7 @@ use anchor_lang::{
 };
 
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState};
-use crate::constants::{MAX_WAGERS, TREASURY_ADDRESS};
+use crate::constants::{MAX_WAGERS, MIN_WAGER, TREASURY_ADDRESS};
 use crate::error::{BettingError, FacetError, TokenError, TreasuryError};
 use crate::utils::functions::verify_signature;
 
@@ -64,6 +64,7 @@ impl<'info_w> Wager<'info_w> {
         //  - Treasury should have the expected address                         |       √
         //  - Provided message must be signed by the treasury account           |       √
         //  - Current number of wagers must be less than the max                |       √
+        //  - Wager should be greater than the minimum                          |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -72,6 +73,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
         require!(self.escrow.n_bets < MAX_WAGERS, BettingError::TooManyBettors);
+        require!(amount >= MIN_WAGER, BettingError::BetTooLow);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {
@@ -137,6 +139,7 @@ impl<'info_w> Wager<'info_w> {
         //  - No other bets should have been placed by this bettor already in this market   |       √
         //  - Provided message must be signed by the treasury account                       |       √
         //  - Current number of wagers must be less than the max                            |       √
+        //  - Wager should be greater than the minimum                                      |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -145,6 +148,7 @@ impl<'info_w> Wager<'info_w> {
         require!(self.bettor.tot_for + self.bettor.tot_against == 0, BettingError::UnderdogWithOtherBet);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
         require!(self.escrow.n_bets < MAX_WAGERS, BettingError::TooManyBettors);
+        require!(amount >= MIN_WAGER, BettingError::BetTooLow);
 
         // If the market has timed out then abort the bet after setting the market state to MarketState::Voting
         if self.market.start_time + self.market.timeout < time {

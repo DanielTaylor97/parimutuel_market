@@ -6,6 +6,8 @@ pub mod vote;
 pub mod wager_results;
 pub mod voter_results;
 pub mod call_market;
+pub mod query_escrow;
+pub mod query_poll;
 
 pub use initialise_marketplace::*;
 pub use initialise_market::*;
@@ -15,3 +17,5 @@ pub use vote::*;
 pub use wager_results::*;
 pub use voter_results::*;
 pub use call_market::*;
+pub use query_escrow::*;
+pub use query_poll::*;
