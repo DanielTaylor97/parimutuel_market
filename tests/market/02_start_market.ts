@@ -10,7 +10,6 @@ import naclUtil from "tweetnacl-util";
 import {assert } from "chai";
 
 import { Market } from "../../target/types/market";
-import { VotingTokens } from "../../target/types/voting_tokens";
 
 describe("market", () => {
     // Configure the client to use the local cluster.
@@ -28,19 +27,6 @@ describe("market", () => {
             JSON.parse(readFileSync(resolvedPath, "utf8"))
         );
         return Keypair.fromSecretKey(loadedKeyBytes);
-    }
-
-    // Initialise the voting tokens mint
-    const mintfn = async () => {
-        const mintProgram = anchor.workspace.VotingTokens as Program<VotingTokens>;
-
-        const MINT_SEED = "mint";
-        const mintPda = PublicKey.findProgramAddressSync(
-            [Buffer.from(MINT_SEED)],
-            mintProgram.programId
-        );
-
-        return [mintPda[0], mintProgram.programId];
     }
 
     // Facets
