@@ -137,7 +137,7 @@ describe("market", () => {
         // Initialise market
         const authensusToken = authensusTokenKP.publicKey;
         const facets = [ truthfulness, originality, authenticity ];
-        const timeout = 7*24*60*60*1000;    // 7 days
+        const timeout = 7*24*60*60;    // 7 days
         const init_market_accounts = {
             admin: admin.publicKey,
             market: marketPda[0],

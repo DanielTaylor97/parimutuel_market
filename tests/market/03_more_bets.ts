@@ -138,7 +138,7 @@ describe("market", () => {
         // Initialise market
         const authensusToken = authensusTokenKP.publicKey;
         const facets = [ truthfulness, originality, authenticity ];
-        const timeout = 7*24*60*60*1000;    // 7 days
+        const timeout = 7*24*60*60;    // 7 days
         const init_market_accounts = {
             admin: initAdmin.publicKey,
             market: marketPda[0],
@@ -197,6 +197,16 @@ describe("market", () => {
                 }
             }
         );
+        const checkAccounts = {
+            signer: treasury.publicKey,
+            market: marketPda[0],
+            escrow: escrowPda[0],
+            systemProgram: SystemProgram.programId,
+        };
+
+        /**
+         * 
+         */
 
         const [signedMessage1, signedMessage2, signedMessage3, signedMessage4, signedMessage5, signedMessage6] = Array.from(
             [
@@ -288,6 +298,24 @@ describe("market", () => {
             expect((err as AnchorError).error.errorCode.number).to.equal(6606);
             expect((err as AnchorError).error.errorCode.code).to.equal("BetWithUnderdogBet");
         }
+
+        const onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
+        const [onChainB1, onChainB2, onChainB3, onChainB4, onChainB5, onChainB6] = Array.from(
+            [initialiserPda[0], bettor2Pda[0], bettor3Pda[0], bettor4Pda[0], bettor5Pda[0], bettor6Pda[0]],
+            async (a) => {
+                return await program.account.bettor.fetch(a)
+            }
+        );
+
+        assert((await onChainB1).totAgainst.toNumber() + (await onChainB1).totFor.toNumber() == amount1);
+        assert((await onChainB2).totAgainst.toNumber() + (await onChainB2).totFor.toNumber() == amount2);
+        assert((await onChainB2).totUnderdog.toNumber() == 0);
+        assert((await onChainB3).totAgainst.toNumber() + (await onChainB3).totFor.toNumber() == amount3);
+        assert((await onChainB4).totAgainst.toNumber() + (await onChainB4).totFor.toNumber() == amount4);
+        assert((await onChainB5).totAgainst.toNumber() + (await onChainB5).totFor.toNumber() == 0);
+        assert((await onChainB5).totUnderdog.toNumber() == amount5);
+        assert((await onChainB6).totAgainst.toNumber() + (await onChainB6).totFor.toNumber() == amount6);
+        assert(onChainEscrow.totAgainst.toNumber() + onChainEscrow.totFor.toNumber() + onChainEscrow.totUnderdog.toNumber() == amount1 + amount2 + amount3 + amount4 + amount5 + amount6);
 
 
         // ----- EVALUATE ------

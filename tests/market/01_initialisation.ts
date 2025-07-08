@@ -139,7 +139,7 @@ describe("market", () => {
         .then(confirm)
         .then(log);
   
-      assert(false, "should've failed but didn't ")
+      assert(false, "Allowed incorrect signer")
     } catch (err) {
       expect(err).to.be.instanceOf(AnchorError);
       expect((err as AnchorError).error.errorCode.number).to.equal(6201);
@@ -168,9 +168,9 @@ describe("market", () => {
     const authensusToken = authensusTokenKP.publicKey;
     const facets = [ truthfulness, originality, authenticity ];
     const facets_empty = [ ];
-    const timeout = 7*24*60*60*1000;        // 7 days
-    const timeout_long = 15*24*60*60*1000;  // 15 days
-    const timeout_short = 23*60*60*1000;    // 23 hours
+    const timeout = 7*24*60*60;        // 7 days
+    const timeout_long = 15*24*60*60;  // 15 days
+    const timeout_short = 23*60*60;    // 23 hours
 
     const init_market_accounts = {
       admin: admin.publicKey,
@@ -189,7 +189,7 @@ describe("market", () => {
         .then(confirm)
         .then(log);
   
-      assert(false, "should've failed but didn't ")
+      assert(false, "Allowed empty facets vec")
     } catch(err) {
       expect(err).to.be.instanceOf(AnchorError);
       expect((err as AnchorError).error.errorCode.number).to.equal(6000);
@@ -204,7 +204,7 @@ describe("market", () => {
         .then(confirm)
         .then(log);
   
-      assert(false, "should've failed but didn't ")
+      assert(false, "Allowed too large a timeout")
     } catch(err) {
       expect(err).to.be.instanceOf(AnchorError);
       expect((err as AnchorError).error.errorCode.number).to.equal(6001);
@@ -219,7 +219,7 @@ describe("market", () => {
         .then(confirm)
         .then(log);
   
-      assert(false, "should've failed but didn't ")
+      assert(false, "Allowed too short a timeout")
     } catch(err) {
       expect(err).to.be.instanceOf(AnchorError);
       expect((err as AnchorError).error.errorCode.number).to.equal(6002);
