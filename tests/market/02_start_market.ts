@@ -129,7 +129,7 @@ describe("market", () => {
             (s) => SystemProgram.transfer({
                 fromPubkey: provider.publicKey,
                 toPubkey: s.publicKey,
-                lamports: 5*LAMPORTS_PER_SOL,
+                lamports: 0.01*LAMPORTS_PER_SOL,
             })
         );
         await provider.sendAndConfirm(airdropTx, []);
@@ -178,7 +178,7 @@ describe("market", () => {
 
         // ------ EXECUTE ------
 
-        const tx = await program.methods.startMarket(marketParams, new anchor.BN(amount), direction, [...signedMessage])
+        await program.methods.startMarket(marketParams, new anchor.BN(amount), direction, [...signedMessage])
             .accounts({ ...startMarketAccounts })
             .signers([firstBettor])
             .rpc()

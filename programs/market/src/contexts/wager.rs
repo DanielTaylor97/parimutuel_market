@@ -57,7 +57,7 @@ impl<'info_w> Wager<'info_w> {
 
         // Requirements:                                                        |   Implemented:
         //  - Market should be in a betting state                               |       √
-        //  - Bettor should have sufficient balance to place the bet            |       √
+        //  - Signer should have sufficient balance to place the bet            |       √
         //  - Market should contain the given facet                             |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Bettor should not have placed any underdog bets                   |       √
@@ -65,7 +65,7 @@ impl<'info_w> Wager<'info_w> {
         //  - Provided message must be signed by the treasury account           |       √
         //  - Current number of wagers must be less than the max                |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.bettor.tot_underdog == 0, BettingError::BetWithUnderdogBet);
@@ -130,7 +130,7 @@ impl<'info_w> Wager<'info_w> {
 
         // Requirements:                                                                    |   Implemented:
         //  - Market should be in a betting state                                           |       √
-        //  - Bettor should have sufficient balance to place the bet                        |       √
+        //  - Signer should have sufficient balance to place the bet                        |       √
         //  - Market should contain the given facet                                         |       √
         //  - The token must be the same as that which instantiated the market              |       √
         //  - At least some normal bets have already been placed                            |       √
@@ -138,7 +138,7 @@ impl<'info_w> Wager<'info_w> {
         //  - Provided message must be signed by the treasury account                       |       √
         //  - Current number of wagers must be less than the max                            |       √
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.bettor.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.escrow.tot_for + self.escrow.tot_against > 0, BettingError::UnderdogBetTooEarly);

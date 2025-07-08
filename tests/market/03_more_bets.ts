@@ -49,8 +49,7 @@ describe("market", () => {
     const originality = { originality: {} };
     const authenticity = { authenticity: {} };
 
-    const [authensusTokenKP, admin, firstBettor] = Array.from({ length: 3 }, () => Keypair.generate());
-    // const authensusTokenKP = Keypair.generate();
+    const [authensusTokenKP, initAdmin, firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6] = Array.from({ length: 8 }, () => Keypair.generate());
     const treasury = loadKeypairFromFile("authensus_treasury_keypair.json");
     const marketPda = PublicKey.findProgramAddressSync(
         [
@@ -59,30 +58,31 @@ describe("market", () => {
         ],
         program.programId
     );
-    const escrowPda = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("escrow"),
-            authensusTokenKP.publicKey.toBuffer(),
-            Buffer.from("truthfulness"),
-        ],
-        program.programId
+    // PDAs for escrow and poll
+    const [escrowPda, pollPda] = Array.from(
+        ["escrow", "poll"],
+        (s) => PublicKey.findProgramAddressSync(
+            [
+                Buffer.from(s),
+                authensusTokenKP.publicKey.toBuffer(),
+                Buffer.from("truthfulness"),
+            ],
+            program.programId
+        )
     );
-    const pollPda = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("poll"),
-            authensusTokenKP.publicKey.toBuffer(),
-            Buffer.from("truthfulness"),
-        ],
-        program.programId
-    );
-    const initialiserPda = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("bettor"),
-            authensusTokenKP.publicKey.toBuffer(),
-            Buffer.from("truthfulness"),
-            firstBettor.publicKey.toBuffer(),
-        ],
-        program.programId
+
+    // All the bettors' PDAs for wagers
+    const [initialiserPda, bettor2Pda, bettor3Pda, bettor4Pda, bettor5Pda, bettor6Pda] = Array.from(
+        [firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6],
+        (b) => PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("bettor"),
+                authensusTokenKP.publicKey.toBuffer(),
+                Buffer.from("truthfulness"),
+                b.publicKey.toBuffer(),
+            ],
+            program.programId
+        )
     );
 
     const confirm = async (signature: string): Promise<string> => {
@@ -119,18 +119,18 @@ describe("market", () => {
     };
     
 
-    it("Starts Market", async () => {
+    it("Places multiple bets", async () => {
 
         // ------- SETUP -------
 
         // Airdrop SOL
         let airdropTx = new Transaction();
         airdropTx.instructions = Array.from(
-            [admin, firstBettor],
+            [initAdmin, firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6],
             (s) => SystemProgram.transfer({
                 fromPubkey: provider.publicKey,
                 toPubkey: s.publicKey,
-                lamports: 5*LAMPORTS_PER_SOL,
+                lamports: 1*LAMPORTS_PER_SOL,
             })
         );
         await provider.sendAndConfirm(airdropTx, []);
@@ -140,13 +140,13 @@ describe("market", () => {
         const facets = [ truthfulness, originality, authenticity ];
         const timeout = 7*24*60*60*1000;    // 7 days
         const init_market_accounts = {
-            admin: admin.publicKey,
+            admin: initAdmin.publicKey,
             market: marketPda[0],
             system_program: SystemProgram.programId,
         };
         await program.methods.initialiseMarket(authensusToken, facets, new anchor.BN(timeout))
             .accounts({ ...init_market_accounts })
-            .signers([admin])
+            .signers([initAdmin])
             .rpc()
             .then(confirm);
 
@@ -154,34 +154,74 @@ describe("market", () => {
             authensusToken: authensusToken,
             facet: truthfulness,
         };
-        const amount = 1_000_000;
-        const direction = true;
+        const [amount1, amount2, amount3, amount4, amount5, amount6] = Array.from(
+            { length: 6 },
+            () => {
+                const bet = Math.round(Math.random()*100_000)*1_000;
+                console.log(bet);
+
+                return bet; 
+            }
+        );
+        const [direction1, direction2, direction3, direction4, direction5, direction6] = Array.from(
+            { length: 6 },
+            () => {
+                return Math.random() > 0.2 // 80% betting on true on avg
+            }
+        );
         
-        const startMarketAccounts = {
-            signer: firstBettor.publicKey,
-            treasury: treasury.publicKey,
-            market: marketPda[0],
-            escrow: escrowPda[0],
-            poll: pollPda[0],
-            initialiser: initialiserPda[0],
-            system_program: SystemProgram.programId,
-        };
+        // All the account contexts for placing bets
+        const [startMarketAccounts, bettor2Accounts, bettor3Accounts, bettor4Accounts, bettor5Accounts, bettor6Accounts] = Array.from(
+            [
+                {a: firstBettor, pda: initialiserPda},
+                {a: bettor2, pda: bettor2Pda},
+                {a: bettor3, pda: bettor3Pda},
+                {a: bettor4, pda: bettor4Pda},
+                {a: bettor5, pda: bettor5Pda},
+                {a: bettor6, pda: bettor6Pda},
+            ],
+            (obj) => {
+                return {
+                    signer: obj.a.publicKey,
+                    treasury: treasury.publicKey,
+                    market: marketPda[0],
+                    escrow: escrowPda[0],
+                    poll: pollPda[0],
+                    initialiser: obj.pda[0],
+                    system_program: SystemProgram.programId,
+                }
+            }
+        );
 
-        const messageString = authensusToken.toString() + "1" + "truthfulness" + firstBettor.publicKey.toString() + "1000000";
-        const encodedMessage: Uint8Array = naclUtil.decodeUTF8(messageString);// getUtf8Encoder().encode(messageString);
-        const signedMessage: Uint8Array = nacl.sign.detached(encodedMessage, treasury.secretKey); // await signBytes(treasury.secretKey, encodedMessage);
+        const [signedMessage1, signedMessage2, signedMessage3, signedMessage4, signedMessage5, signedMessage6] = Array.from(
+            [
+                {account: firstBettor, amount: amount1},
+                {account: firstBettor, amount: amount1},
+                {account: firstBettor, amount: amount1},
+                {account: firstBettor, amount: amount1},
+                {account: firstBettor, amount: amount1},
+                {account: firstBettor, amount: amount1},
+            ],
+            (b) => {
+                const str = authensusToken.toString() + "1" + "truthfulness" + b.account.publicKey.toString() + b.amount.toString();
+                const enc = naclUtil.decodeUTF8(str);
+                return nacl.sign.detached(enc, treasury.secretKey)
+            }
+        );
 
-        // const decodedSignature = getBase58Decoder().decode(signedMessage);
-        const verified = nacl.sign.detached.verify(encodedMessage, signedMessage, treasury.publicKey.toBytes()); // await verifySignature(treasury.publicKey, signedMessage, encodedMessage);
-
-        assert(verified);
+        // Start the market
+        await program.methods.startMarket(marketParams, new anchor.BN(amount1), direction1, [...signedMessage1])
+            .accounts({ ...startMarketAccounts })
+            .signers([firstBettor])
+            .rpc()
+            .then(confirm);
 
 
         // ------ EXECUTE ------
-
-        const tx = await program.methods.startMarket(marketParams, new anchor.BN(amount), direction, [...signedMessage])
-            .accounts({ ...startMarketAccounts })
-            .signers([firstBettor])
+        
+        const tx2 = await program.methods.wager(marketParams, new anchor.BN(amount2), direction2, [...signedMessage2])
+            .accounts({ ...bettor2Accounts})
+            .signers([bettor2])
             .rpc()
             .then(confirm)
             .then(log_with_cost);

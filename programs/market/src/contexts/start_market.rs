@@ -110,13 +110,13 @@ impl<'info_s> StartMarket<'info_s> {
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Provided message must be signed by the treasury account           |       √
-        //  - Initialiser should have sufficient funds to make the bet          |       √
+        //  - Signer should have sufficient funds to make the bet               |       √
         //  - Market should now be in a betting state                           |       √
         //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
-        require!(self.initialiser.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
         require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
 
