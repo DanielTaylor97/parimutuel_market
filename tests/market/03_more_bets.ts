@@ -157,10 +157,8 @@ describe("market", () => {
         const [amount1, amount2, amount3, amount4, amount5, amount6] = Array.from(
             { length: 6 },
             () => {
-                const bet = Math.round(Math.random()*100_000)*1_000;
-                console.log(bet);
 
-                return bet; 
+                return Math.round(Math.random()*100_000)*1_000; 
             }
         );
         const [direction1, direction2, direction3, direction4, direction5, direction6] = Array.from(
@@ -171,9 +169,17 @@ describe("market", () => {
         );
         
         // All the account contexts for placing bets
-        const [startMarketAccounts, bettor2Accounts, bettor3Accounts, bettor4Accounts, bettor5Accounts, bettor6Accounts] = Array.from(
+        const startMarketAccounts = {
+            signer: firstBettor.publicKey,
+            treasury: treasury.publicKey,
+            market: marketPda[0],
+            escrow: escrowPda[0],
+            poll: pollPda[0],
+            initialiser: initialiserPda[0],
+            system_program: SystemProgram.programId,
+        };
+        const [bettor2Accounts, bettor3Accounts, bettor4Accounts, bettor5Accounts, bettor6Accounts] = Array.from(
             [
-                {a: firstBettor, pda: initialiserPda},
                 {a: bettor2, pda: bettor2Pda},
                 {a: bettor3, pda: bettor3Pda},
                 {a: bettor4, pda: bettor4Pda},
@@ -183,11 +189,10 @@ describe("market", () => {
             (obj) => {
                 return {
                     signer: obj.a.publicKey,
-                    treasury: treasury.publicKey,
                     market: marketPda[0],
                     escrow: escrowPda[0],
-                    poll: pollPda[0],
-                    initialiser: obj.pda[0],
+                    bettor: obj.pda[0],
+                    treasury: treasury.publicKey,
                     system_program: SystemProgram.programId,
                 }
             }
@@ -224,7 +229,65 @@ describe("market", () => {
             .signers([bettor2])
             .rpc()
             .then(confirm)
-            .then(log_with_cost);
+            .then(log);
+        
+        const tx3 = await program.methods.wager(marketParams, new anchor.BN(amount3), direction3, [...signedMessage3])
+            .accounts({ ...bettor3Accounts})
+            .signers([bettor3])
+            .rpc()
+            .then(confirm)
+            .then(log);
+
+        // Should throw the expected error when someone tries to make an underdog bet with existing bets in place
+        try {
+            await program.methods.underdogBet(marketParams, new anchor.BN(amount2), [...signedMessage2])
+                .accounts({ ...bettor2Accounts})
+                .signers([bettor2])
+                .rpc()
+                .then(confirm);
+        
+            assert(false, "Allowed underdog bet after normal wager")
+        } catch (err) {
+            expect(err).to.be.instanceOf(AnchorError);
+            expect((err as AnchorError).error.errorCode.number).to.equal(6605);
+            expect((err as AnchorError).error.errorCode.code).to.equal("UnderdogWithOtherBet");
+        }
+        
+        const tx4 = await program.methods.wager(marketParams, new anchor.BN(amount4), direction4, [...signedMessage4])
+            .accounts({ ...bettor4Accounts})
+            .signers([bettor4])
+            .rpc()
+            .then(confirm)
+            .then(log);
+        
+        const tx5 = await program.methods.underdogBet(marketParams, new anchor.BN(amount5), [...signedMessage5])
+            .accounts({ ...bettor5Accounts})
+            .signers([bettor5])
+            .rpc()
+            .then(confirm)
+            .then(log);
+        
+        const tx6 = await program.methods.wager(marketParams, new anchor.BN(amount6), direction6, [...signedMessage6])
+            .accounts({ ...bettor6Accounts})
+            .signers([bettor6])
+            .rpc()
+            .then(confirm)
+            .then(log);
+
+        // Should throw the expected error when someone tries to make a normal bet with existing underdog bet
+        try {
+            await program.methods.wager(marketParams, new anchor.BN(amount5), direction5, [...signedMessage5])
+                .accounts({ ...bettor5Accounts})
+                .signers([bettor5])
+                .rpc()
+                .then(confirm);
+        
+            assert(false, "Allowed normal wager after underdog bet")
+        } catch (err) {
+            expect(err).to.be.instanceOf(AnchorError);
+            expect((err as AnchorError).error.errorCode.number).to.equal(6606);
+            expect((err as AnchorError).error.errorCode.code).to.equal("BetWithUnderdogBet");
+        }
 
 
         // ----- EVALUATE ------
