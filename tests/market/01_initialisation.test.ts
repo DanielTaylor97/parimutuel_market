@@ -15,7 +15,7 @@ import { homedir } from "os";
 import path from "path";
 import * as anchor from "@coral-xyz/anchor";
 import { AnchorError, Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {assert, expect } from "chai";
 
@@ -40,19 +40,6 @@ describe("Initialise Market", () => {
     return Keypair.fromSecretKey(loadedKeyBytes);
   }
 
-  // Initialise the voting tokens mint
-  const mintfn = async () => {
-    const mintProgram = anchor.workspace.VotingTokens as Program<VotingTokens>;
-
-    const MINT_SEED = "mint";
-    const mintPda = PublicKey.findProgramAddressSync(
-      [Buffer.from(MINT_SEED)],
-      mintProgram.programId
-    );
-    
-    return [mintPda[0], mintProgram.programId];
-  }
-
   const [authensusTokenKP, admin] = Array.from({ length: 2 }, () => Keypair.generate());
   // const authensusTokenKP = Keypair.generate();
   const treasury = loadKeypairFromFile("authensus_treasury_keypair.json");
@@ -63,6 +50,53 @@ describe("Initialise Market", () => {
     ],
     program.programId
   );
+
+  // Initialise the voting tokens mint
+  const mintfn = async () => {
+    const mintProgram = anchor.workspace.VotingTokens as Program<VotingTokens>;
+  
+    const initParams = {
+      name: "AuthensusVotingToken",
+      symbol: "AUTHVOTE",
+      uri: "",
+      decimals: 9,
+    };
+
+    const MINT_SEED = "mint";
+    const mintPda = PublicKey.findProgramAddressSync(
+      [Buffer.from(MINT_SEED)],
+      mintProgram.programId
+    );
+    const METADATA_SEED = "metadata";
+    const TOKEN_METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+    const metadataPda = PublicKey.findProgramAddressSync(
+      [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          mintPda[0].toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    const initAccounts = {
+      signer: treasury.publicKey,
+      mint: mintPda[0],
+      metadata: metadataPda[0],
+      system_program: SystemProgram.programId,
+      token_program: TOKEN_PROGRAM_ID,
+      token_metadata_program: TOKEN_METADATA_PROGRAM_ID,
+      rent: SYSVAR_RENT_PUBKEY,
+    };
+
+    await mintProgram.methods.init(initParams)
+        .accounts({ ...initAccounts })
+        .signers([treasury])
+        .rpc()
+        .then(confirm)
+        .then(log);
+    
+    return [mintPda[0], mintProgram.programId];
+  }
 
   const confirm = async (signature: string): Promise<string> => {
     const block = await connection.getLatestBlockhash();
@@ -91,7 +125,7 @@ describe("Initialise Market", () => {
     let tx = new Transaction();
 
     tx.instructions = Array.from(
-      [admin],
+      [admin, treasury],
       (s) => SystemProgram.transfer({
         fromPubkey: provider.publicKey,
         toPubkey: s.publicKey,
