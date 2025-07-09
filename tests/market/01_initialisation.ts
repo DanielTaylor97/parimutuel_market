@@ -22,7 +22,7 @@ import {assert, expect } from "chai";
 import { Market } from "../../target/types/market";
 import { VotingTokens } from "../../target/types/voting_tokens";
 
-describe("market", () => {
+describe("Initialise Market", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider();

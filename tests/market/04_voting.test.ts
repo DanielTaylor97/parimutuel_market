@@ -13,14 +13,18 @@ import naclUtil from "tweetnacl-util";
 import {assert, expect } from "chai";
 
 import { Market } from "../../target/types/market";
+const MarketIDL = require("../../target/idl/market.json");
 import { VotingTokens } from "../../target/types/voting_tokens";
 
-describe("market", () => {
-    // Configure the client to use the local cluster.
-    anchor.setProvider(anchor.AnchorProvider.env());
-    const provider = anchor.getProvider();
+test("Place Votes", async () => {
+
+    const context = await startAnchor("tests/market", [], []);
+    const provider = new BankrunProvider(context);
     const connection = provider.connection;
-    const program = anchor.workspace.Market as Program<Market>;
+    const program = new Program<Market>(
+        MarketIDL,
+        provider,
+    );
 
     // Function to read keypair from file
     function loadKeypairFromFile(filePath: string): Keypair {

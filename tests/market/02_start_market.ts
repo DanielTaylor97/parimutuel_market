@@ -11,7 +11,7 @@ import {assert } from "chai";
 
 import { Market } from "../../target/types/market";
 
-describe("market", () => {
+describe("Start Market", () => {
     // Configure the client to use the local cluster.
     anchor.setProvider(anchor.AnchorProvider.env());
     const provider = anchor.getProvider();
