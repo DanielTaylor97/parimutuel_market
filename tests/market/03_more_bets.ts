@@ -3,15 +3,13 @@ import { homedir } from "os";
 import path from "path";
 import * as anchor from "@coral-xyz/anchor";
 import { AnchorError, Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, type GetVersionedTransactionConfig } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
 
 import {assert, expect } from "chai";
 
 import { Market } from "../../target/types/market";
-import { VotingTokens } from "../../target/types/voting_tokens";
 
 describe("market", () => {
     // Configure the client to use the local cluster.
@@ -29,19 +27,6 @@ describe("market", () => {
             JSON.parse(readFileSync(resolvedPath, "utf8"))
         );
         return Keypair.fromSecretKey(loadedKeyBytes);
-    }
-
-    // Initialise the voting tokens mint
-    const mintfn = async () => {
-        const mintProgram = anchor.workspace.VotingTokens as Program<VotingTokens>;
-
-        const MINT_SEED = "mint";
-        const mintPda = PublicKey.findProgramAddressSync(
-            [Buffer.from(MINT_SEED)],
-            mintProgram.programId
-        );
-
-        return [mintPda[0], mintProgram.programId];
     }
 
     // Facets
@@ -98,22 +83,6 @@ describe("market", () => {
         console.log(
             `Link: https://explorer.solana.com/transaction/${signature}?cluster=custom&customUrl=${connection.rpcEndpoint}`
         );
-
-        return signature;
-    };
-
-    const log_with_cost = async (signature: string): Promise<string> => {
-        console.log(
-            `Link: https://explorer.solana.com/transaction/${signature}?cluster=custom&customUrl=${connection.rpcEndpoint}`
-        );
-
-        let config: GetVersionedTransactionConfig = {
-            commitment: "finalized",
-            maxSupportedTransactionVersion: 0,
-        };
-        let result = await connection.getTransaction(signature, config);
-        console.log(`Transaction fee: ${result?.meta?.fee}`);
-        console.log(`Transaction compute units: ${result?.meta?.computeUnitsConsumed}`);
 
         return signature;
     };
@@ -224,14 +193,14 @@ describe("market", () => {
 
         // ------ EXECUTE ------
         
-        const tx2 = await program.methods.wager(marketParams, new anchor.BN(amount2), direction2, [...signedMessage2])
+        await program.methods.wager(marketParams, new anchor.BN(amount2), direction2, [...signedMessage2])
             .accounts({ ...bettor2Accounts})
             .signers([bettor2])
             .rpc()
             .then(confirm)
             .then(log);
         
-        const tx3 = await program.methods.wager(marketParams, new anchor.BN(amount3), direction3, [...signedMessage3])
+        await program.methods.wager(marketParams, new anchor.BN(amount3), direction3, [...signedMessage3])
             .accounts({ ...bettor3Accounts})
             .signers([bettor3])
             .rpc()
@@ -253,21 +222,21 @@ describe("market", () => {
             expect((err as AnchorError).error.errorCode.code).to.equal("UnderdogWithOtherBet");
         }
         
-        const tx4 = await program.methods.wager(marketParams, new anchor.BN(amount4), direction4, [...signedMessage4])
+        await program.methods.wager(marketParams, new anchor.BN(amount4), direction4, [...signedMessage4])
             .accounts({ ...bettor4Accounts})
             .signers([bettor4])
             .rpc()
             .then(confirm)
             .then(log);
         
-        const tx5 = await program.methods.underdogBet(marketParams, new anchor.BN(amount5), [...signedMessage5])
+        await program.methods.underdogBet(marketParams, new anchor.BN(amount5), [...signedMessage5])
             .accounts({ ...bettor5Accounts})
             .signers([bettor5])
             .rpc()
             .then(confirm)
             .then(log);
         
-        const tx6 = await program.methods.wager(marketParams, new anchor.BN(amount6), direction6, [...signedMessage6])
+        await program.methods.wager(marketParams, new anchor.BN(amount6), direction6, [...signedMessage6])
             .accounts({ ...bettor6Accounts})
             .signers([bettor6])
             .rpc()
