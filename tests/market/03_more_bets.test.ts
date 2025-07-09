@@ -125,16 +125,11 @@ describe("Place Bets", () => {
         };
         const [amount1, amount2, amount3, amount4, amount5, amount6] = Array.from(
             { length: 6 },
-            () => {
-
-                return Math.round(Math.random()*100_000)*1_000; 
-            }
+            () => Math.round(Math.random()*100_000)*1_000
         );
         const [direction1, direction2, direction3, direction4, direction5, direction6] = Array.from(
             { length: 6 },
-            () => {
-                return Math.random() > 0.2 // 80% betting on true on avg
-            }
+            () => Math.random() > 0.2 // 80% betting on true on avg
         );
         
         // All the account contexts for placing bets
