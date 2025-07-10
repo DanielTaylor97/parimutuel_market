@@ -301,7 +301,7 @@ describe("Consolidate", () => {
             voteAmount7,
         ] = Array.from(
             { length: 13 },
-            () => Math.round(Math.random()*100_000)*1_000
+            () => Math.round(Math.random()*100_000)*1_000 + 1_000_000 // Keep at least at minimum of 1_000_000
         );
         const [
             betDirection1,
@@ -494,48 +494,144 @@ describe("Consolidate", () => {
             expect((err as AnchorError).error.errorCode.code).to.equal("VotingClosed");
         }
 
-        const consolidateBettor1accounts = {
-            treasury: treasury.publicKey,
-            signer: firstBettor.publicKey,
-            market: marketPda[0],
-            escrow: escrowPda[0],
-            bettor: initialiserPda[0],
-            poll: pollPda[0],
-            mint: mintPda,
-            recipient: bettor1Ata,
-            votingTokensProgram: mintProgramId,
-            systemProgram: SystemProgram.programId,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            rent: SYSVAR_RENT_PUBKEY,
-        };
+        const [consolidateBettor1accounts, consolidateBettor2accounts, consolidateBettor3accounts, consolidateBettor4accounts, consolidateBettor5accounts, consolidateBettor6accounts] = Array.from(
+            [
+                { acc: firstBettor, pda: initialiserPda, ata: bettor1Ata },
+                { acc: bettor2, pda: bettor2Pda, ata: bettor2Ata },
+                { acc: bettor3, pda: bettor3Pda, ata: bettor3Ata },
+                { acc: bettor4, pda: bettor4Pda, ata: bettor4Ata },
+                { acc: bettor5, pda: bettor5Pda, ata: bettor5Ata },
+                { acc: bettor6, pda: bettor6Pda, ata: bettor6Ata },
+            ],
+            (obj) => {
+                return {
+                    treasury: treasury.publicKey,
+                    signer: obj.acc.publicKey,
+                    market: marketPda[0],
+                    escrow: escrowPda[0],
+                    bettor: obj.pda[0],
+                    poll: pollPda[0],
+                    mint: mintPda,
+                    recipient: obj.ata,
+                    votingTokensProgram: mintProgramId,
+                    systemProgram: SystemProgram.programId,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    rent: SYSVAR_RENT_PUBKEY,
+                }
+            }
+        );
 
-        const consolidateVoter1accounts = {
-            treasury: treasury.publicKey,
-            signer: voter1.publicKey,
-            market: marketPda[0],
-            poll: pollPda[0],
-            voter: voter1Pda[0],
-            votingTokenAccount: voter1Ata,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            mint: mintPda,
-            systemProgram: SystemProgram.programId,
-            votingTokensProgram: mintProgramId,
-            rent: SYSVAR_RENT_PUBKEY,
-        };
+        const [consolidateVoter1accounts, consolidateVoter2accounts, consolidateVoter3accounts, consolidateVoter4accounts, consolidateVoter5accounts, consolidateVoter6accounts] = Array.from(
+            [
+                { acc: voter1, pda: voter1Pda, ata: voter1Ata },
+                { acc: voter2, pda: voter2Pda, ata: voter2Ata },
+                { acc: voter3, pda: voter3Pda, ata: voter3Ata },
+                { acc: voter4, pda: voter4Pda, ata: voter4Ata },
+                { acc: voter5, pda: voter5Pda, ata: voter5Ata },
+                { acc: voter6, pda: voter6Pda, ata: voter6Ata },
+            ],
+            (obj) => {
+                return {
+                    treasury: treasury.publicKey,
+                    signer: obj.acc.publicKey,
+                    market: marketPda[0],
+                    poll: pollPda[0],
+                    voter: obj.pda[0],
+                    votingTokenAccount: obj.ata,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    mint: mintPda,
+                    systemProgram: SystemProgram.programId,
+                    votingTokensProgram: mintProgramId,
+                    rent: SYSVAR_RENT_PUBKEY,
+                }
+            }
+        );
 
         // Start consolidations
-        await program.methods.wagerResults(marketParams)
-            .accounts({...consolidateBettor1accounts})
-            .signers([firstBettor, treasury])
+        const wagerConsolidationArray = [
+            { b: firstBettor, acc: consolidateBettor1accounts },
+            { b: bettor2, acc: consolidateBettor2accounts },
+            { b: bettor3, acc: consolidateBettor3accounts },
+            { b: bettor4, acc: consolidateBettor4accounts },
+            // { b: bettor5, acc: consolidateBettor5accounts },
+            { b: bettor6, acc: consolidateBettor6accounts },
+        ];
+        for (var index in wagerConsolidationArray) {
+            await program.methods.wagerResults(marketParams)
+                .accounts({...wagerConsolidationArray[index].acc})
+                .signers([wagerConsolidationArray[index].b, treasury])
+                .rpc();
+
+            simulateTimeTravel(client, 1);
+        }
+
+        const voteConsolidationArray = [
+            { v: voter1, acc: consolidateVoter1accounts },
+            { v: voter2, acc: consolidateVoter2accounts },
+            { v: voter3, acc: consolidateVoter3accounts },
+            { v: voter4, acc: consolidateVoter4accounts },
+            { v: voter5, acc: consolidateVoter5accounts },
+            { v: voter6, acc: consolidateVoter6accounts },
+        ];
+        for (var index in voteConsolidationArray) {
+            await program.methods.voterResults(marketParams)
+                .accounts({...voteConsolidationArray[index].acc})
+                .signers([voteConsolidationArray[index].v, treasury])
+                .rpc();
+
+            simulateTimeTravel(client, 1);
+        }
+
+        const callMarketAccounts = {
+            admin: treasury.publicKey,
+            market: marketPda[0],
+            poll: pollPda[0],
+            escrow: escrowPda[0],
+        };
+
+        // Should not yet be able to call market
+        try {
+            await program.methods.callMarket(marketParams)
+                .accounts({ ...callMarketAccounts})
+                .signers([treasury])
+                .rpc();
+        
+            assert(false, "Allowed market to be called prematurely")
+        } catch (err) {
+            expect(err).to.be.instanceOf(AnchorError);
+            expect((err as AnchorError).error.errorCode.number).to.equal(6401);
+            expect((err as AnchorError).error.errorCode.code).to.equal("MarketInWrongState");
+        }
+
+        // 50-50 as to whether the market will be brought into a closable state by time or by completion of consolidations
+        // Both conditions should work
+        if (Math.random() > 0.5) {
+
+            console.log("All participants consolidated");   // √
+
+            await program.methods.wagerResults(marketParams)
+                .accounts({...consolidateBettor5accounts})
+                .signers([bettor5, treasury])
+                .rpc();
+
+            simulateTimeTravel(client, 1);
+
+        } else {
+
+            console.log("Consolidation timeout reached");   // √
+
+            const secondsForwards = 72*60*60;
+            simulateTimeTravel(client, secondsForwards);
+
+        }
+
+        // Now call the market
+        await program.methods.callMarket(marketParams)
+            .accounts({ ...callMarketAccounts})
+            .signers([treasury])
             .rpc();
 
-        simulateTimeTravel(client, 1);
-
-        await program.methods.voterResults(marketParams)
-            .accounts({...consolidateVoter1accounts})
-            .signers([voter1, treasury])
-            .rpc();
 
 
         // ----- EVALUATE ------

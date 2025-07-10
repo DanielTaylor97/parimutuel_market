@@ -319,7 +319,7 @@ describe("Place Votes", () => {
             bettor2voteAmount,
         ] = Array.from(
             { length: 13 },
-            () => Math.round(Math.random()*100_000)*1_000
+            () => Math.round(Math.random()*100_000)*1_000 + 1_000_000 // Keep at least at minimum of 1_000_000
         );
         const [
             betDirection1,
@@ -574,8 +574,8 @@ describe("Place Votes", () => {
         const totFor = (voteDirection1 ? 1 : 0) + (voteDirection2 ? 1 : 0) + (voteDirection3 ? 1 : 0) + (voteDirection4 ? 1 : 0) + (voteDirection5 ? 1 : 0) + (voteDirection1 ? 1 : 0)
         const totAgainst = (voteDirection1 ? 0 : 1) + (voteDirection2 ? 0 : 1) + (voteDirection3 ? 0 : 1) + (voteDirection4 ? 0 : 1) + (voteDirection5 ? 0 : 1) + (voteDirection1 ? 0 : 1);
         
-        assert(onChainPoll.totalFor == totFor);
-        assert(onChainPoll.totalAgainst == totAgainst);
+        assert(onChainPoll.totalFor == totFor, `On-chain total for: ${onChainPoll.totalFor}; calculated total for: ${totFor}`);
+        assert(onChainPoll.totalAgainst == totAgainst, `On-chain total against: ${onChainPoll.totalAgainst}; calculated total against: ${totAgainst}`);
         
     });
 
