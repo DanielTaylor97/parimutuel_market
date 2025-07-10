@@ -606,9 +606,7 @@ describe("Consolidate", () => {
 
         // 50-50 as to whether the market will be brought into a closable state by time or by completion of consolidations
         // Both conditions should work
-        if (Math.random() > 0.5) {
-
-            console.log("All participants consolidated");   // √
+        if (Math.random() > 0.5) {  // √
 
             await program.methods.wagerResults(marketParams)
                 .accounts({...consolidateBettor5accounts})
@@ -617,9 +615,7 @@ describe("Consolidate", () => {
 
             simulateTimeTravel(client, 1);
 
-        } else {
-
-            console.log("Consolidation timeout reached");   // √
+        } else {    // √
 
             const secondsForwards = 72*60*60;
             simulateTimeTravel(client, secondsForwards);
