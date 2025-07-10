@@ -115,7 +115,7 @@ impl<'info_v> Vote<'info_v> {
         require!(self.market.start_time + self.market.timeout < time, VotingError::NotVotingTime);
         require!(self.market.state == MarketState::Betting || self.market.state == MarketState::Voting, VotingError::NotVotingTime);
         require!(self.voter.amount == 0, VotingError::AlreadyVoted);
-        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT < time, VotingError::VotingClosed);
+        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT > time, VotingError::VotingClosed);
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
         require!(self.voting_token_account.amount >= amount, VotingError::InsufficientVotingTokens);
         require!(amount >= MIN_VOTE_AMOUNT, VotingError::AmountTooLow);

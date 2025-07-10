@@ -482,6 +482,8 @@ describe("Place Votes", () => {
         ];
 
         for (var index in votesObjList) {
+            console.log(`Time: ${client.getClock().unixTimestamp}, betting timeout: ${timeout}, voting timeout: ${timeout + 48*60*60}`);
+
             await program.methods.vote(marketParams, new anchor.BN(votesObjList[index].amt), votesObjList[index].dir, [...votesObjList[index].msg])
                 .accounts({ ...votesObjList[index].acc})
                 .signers([votesObjList[index].signer, treasury])
@@ -531,6 +533,10 @@ describe("Place Votes", () => {
                 return await program.account.voter.fetch(a)
             }
         );
+
+        const tokenBalance = (await program.provider.connection.getTokenAccountBalance(treasuryAta)).value.uiAmount;
+        console.log(`Token balance: ${tokenBalance}`);
+        assert(tokenBalance == voteAmount1 + voteAmount2 + voteAmount3 + voteAmount4 + voteAmount5 + voteAmount6 + 1*LAMPORTS_PER_SOL);
 
         assert((await onChainV1).amount.toNumber() == voteAmount1 && (await onChainV1).direction == voteDirection1);
         assert((await onChainV2).amount.toNumber() == voteAmount2 && (await onChainV2).direction == voteDirection2);
