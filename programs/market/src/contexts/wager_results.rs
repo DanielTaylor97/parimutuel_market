@@ -106,7 +106,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         //  - ATA needs to be correct                                           |       √
         //  - Mint account ID needs to be correct                               |       √
         //  - Voting Tokens Program needs to be correct                         |       √
-        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT > time, ResultsError::VotingNotFinished);
+        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT < time, ResultsError::VotingNotFinished);
         require!(bets_condition, TreasuryError::MessageNotValid);
         require!(self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog > 0, ResultsError::BettorAlreadyConsolidated);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
@@ -204,8 +204,9 @@ impl<'info_wr> WagerResult<'info_wr> {
 
         let accounts: MintTokens<'_> = MintTokens{
             payer: self.treasury.to_account_info(),
+            recipient: self.signer.to_account_info(),
             mint: self.mint.to_account_info(),
-            recipient: self.recipient.to_account_info(),
+            recipient_ata: self.recipient.to_account_info(),
             associated_token_program: self.associated_token_program.to_account_info(),
             system_program: self.system_program.to_account_info(),
             token_program: self.token_program.to_account_info(),

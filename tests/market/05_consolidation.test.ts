@@ -70,7 +70,8 @@ describe("Consolidate", () => {
             voter4,
             voter5,
             voter6,
-        ] = Array.from({ length: 14 }, () => Keypair.generate());
+            voter7,
+        ] = Array.from({ length: 15 }, () => Keypair.generate());
         const treasury = loadKeypairFromFile("authensus_treasury_keypair.json");
         client.airdrop(treasury.publicKey, BigInt(1*LAMPORTS_PER_SOL));
 
@@ -116,19 +117,19 @@ describe("Consolidate", () => {
             return [mintPda[0], mintProgram.programId];
         }
 
-        const [mintPda, _mintProgramId] = await mintfn();
+        const [mintPda, mintProgramId] = await mintfn();
     
         // mint tokens to an ata
         const mintTo = async (
             {accounts, amount, payer}:
             {
-                accounts: { payer: PublicKey; mint: PublicKey; recipient: PublicKey; associated_token_program: PublicKey; system_program: PublicKey; token_program: PublicKey; rent: PublicKey; },
+                accounts: { payer: PublicKey; recipient: PublicKey; mint: PublicKey; recipient_ata: PublicKey; associated_token_program: PublicKey; system_program: PublicKey; token_program: PublicKey; rent: PublicKey; },
                 amount: number,
                 payer: Keypair
             }
         ) => {
     
-            const tx = await mintProgram.methods.mintTokens(new anchor.BN(amount))
+            await mintProgram.methods.mintTokens(new anchor.BN(amount))
                 .accounts({...accounts})
                 .signers([payer])
                 .rpc();
@@ -144,9 +145,15 @@ describe("Consolidate", () => {
             voter4Ata,
             voter5Ata,
             voter6Ata,
-            bettor2votingAta,
+            voter7Ata,
+            bettor1Ata,
+            bettor2Ata,
+            bettor3Ata,
+            bettor4Ata,
+            bettor5Ata,
+            bettor6Ata,
         ] = Array.from(
-            [voter1, voter2, voter3, voter4, voter5, voter6, bettor2],
+            [voter1, voter2, voter3, voter4, voter5, voter6, voter7, firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6],
             (v) => getAssociatedTokenAddressSync(mintPda, v.publicKey, true)
         );
 
@@ -184,8 +191,8 @@ describe("Consolidate", () => {
             )
         );
         // All the voters' PDAs for voting
-        const [voter1Pda, voter2Pda, voter3Pda, voter4Pda, voter5Pda, voter6Pda, bettor2votingPda] = Array.from(
-            [voter1, voter2, voter3, voter4, voter5, voter6, bettor2],
+        const [voter1Pda, voter2Pda, voter3Pda, voter4Pda, voter5Pda, voter6Pda, voter7Pda] = Array.from(
+            [voter1, voter2, voter3, voter4, voter5, voter6, voter7],
             (v) => PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("voter"),
@@ -196,9 +203,9 @@ describe("Consolidate", () => {
                 program.programId
             )
         );
-        // All the voters' PDAs for voting
-        const [voter1wagerPda, voter2wagerPda, voter3wagerPda, voter4wagerPda, voter5wagerPda, voter6wagerPda] = Array.from(
-            [voter1, voter2, voter3, voter4, voter5, voter6],
+        // All the voters' PDAs for betting
+        const [voter1wagerPda, voter2wagerPda, voter3wagerPda, voter4wagerPda, voter5wagerPda, voter6wagerPda, voter7wagerPda] = Array.from(
+            [voter1, voter2, voter3, voter4, voter5, voter6, voter7],
             (b) => PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("bettor"),
@@ -230,7 +237,7 @@ describe("Consolidate", () => {
 
         // Airdrop SOL
         const [_airdrops] = Array.from(
-            [initAdmin, firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6, voter1, voter2, voter3, voter4, voter5, voter6],
+            [initAdmin, firstBettor, bettor2, bettor3, bettor4, bettor5, bettor6, voter1, voter2, voter3, voter4, voter5, voter6, voter7],
             (s) => client.airdrop(s.publicKey, BigInt(1*LAMPORTS_PER_SOL))
         );
 
@@ -243,20 +250,21 @@ describe("Consolidate", () => {
             {v: voter4, ata: voter4Ata},
             {v: voter5, ata: voter5Ata},
             {v: voter6, ata: voter6Ata},
-            {v: bettor2, ata: bettor2votingAta},
+            {v: voter7, ata: voter7Ata},
         ];
         for (var index in votersAndAtasList) {
             
             const accounts = {
-                payer: votersAndAtasList[index].v.publicKey,
+                payer: treasury.publicKey,
+                recipient: votersAndAtasList[index].v.publicKey,
                 mint: mintPda,
-                recipient: votersAndAtasList[index].ata,
+                recipient_ata: votersAndAtasList[index].ata,
                 associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
                 system_program: SystemProgram.programId,
                 token_program: TOKEN_PROGRAM_ID,
                 rent: SYSVAR_RENT_PUBKEY,
             };
-            await mintTo({accounts: accounts, amount: 1*LAMPORTS_PER_SOL, payer: votersAndAtasList[index].v})
+            await mintTo({accounts: accounts, amount: 1*LAMPORTS_PER_SOL, payer: treasury})
         }
 
         // Initialise market
@@ -290,7 +298,7 @@ describe("Consolidate", () => {
             voteAmount4,
             voteAmount5,
             voteAmount6,
-            bettor2voteAmount,
+            voteAmount7,
         ] = Array.from(
             { length: 13 },
             () => Math.round(Math.random()*100_000)*1_000
@@ -308,7 +316,7 @@ describe("Consolidate", () => {
             voteDirection4,
             voteDirection5,
             voteDirection6,
-            bettor2voteDirection
+            voteDirection7,
         ] = Array.from(
             { length: 13 },
             () => Math.random() > 0.2 // 80% betting on true on avg
@@ -344,7 +352,7 @@ describe("Consolidate", () => {
             }
         );
 
-        const [voter1Accounts, voter2Accounts, voter3Accounts, voter4Accounts, voter5Accounts, voter6Accounts, bettor2votingAccounts] = Array.from(
+        const [voter1Accounts, voter2Accounts, voter3Accounts, voter4Accounts, voter5Accounts, voter6Accounts, voter7Accounts] = Array.from(
             [
                 {a: voter1, pda: voter1Pda, betPda: voter1wagerPda, ata: voter1Ata},
                 {a: voter2, pda: voter2Pda, betPda: voter2wagerPda, ata: voter2Ata},
@@ -352,7 +360,7 @@ describe("Consolidate", () => {
                 {a: voter4, pda: voter4Pda, betPda: voter4wagerPda, ata: voter4Ata},
                 {a: voter5, pda: voter5Pda, betPda: voter5wagerPda, ata: voter5Ata},
                 {a: voter6, pda: voter6Pda, betPda: voter6wagerPda, ata: voter6Ata},
-                {a: bettor2, pda: bettor2votingPda, betPda: bettor2Pda, ata: bettor2votingAta},
+                {a: voter7, pda: voter7Pda, betPda: voter7wagerPda, ata: voter7Ata},
             ],
             (obj) => {
                 return {
@@ -388,7 +396,7 @@ describe("Consolidate", () => {
             }
         );
 
-        const [voterSignedMessage1, voterSignedMessage2, voterSignedMessage3, voterSignedMessage4, voterSignedMessage5, voterSignedMessage6, bettor2SignedVotingMessage] = Array.from(
+        const [voterSignedMessage1, voterSignedMessage2, voterSignedMessage3, voterSignedMessage4, voterSignedMessage5, voterSignedMessage6, voterSignedMessage7] = Array.from(
             [
                 {account: voter1, voteAmount: voteAmount1, dir: voteDirection1},
                 {account: voter2, voteAmount: voteAmount2, dir: voteDirection2},
@@ -396,7 +404,7 @@ describe("Consolidate", () => {
                 {account: voter4, voteAmount: voteAmount4, dir: voteDirection4},
                 {account: voter5, voteAmount: voteAmount5, dir: voteDirection5},
                 {account: voter6, voteAmount: voteAmount6, dir: voteDirection6},
-                {account: bettor2, voteAmount: bettor2voteAmount, dir: bettor2voteDirection},
+                {account: voter7, voteAmount: voteAmount7, dir: voteDirection7},
             ],
             (v) => {
                 const dirString = v.dir ? "for" : "against";
@@ -437,7 +445,7 @@ describe("Consolidate", () => {
         }
 
         // Fast forward in time
-        const secondsForwards = timeout + (5*60);   // 5 minutes after timeout
+        let secondsForwards = timeout + (5*60);   // 5 minutes after timeout
         simulateTimeTravel(client, secondsForwards);
 
         // Place votes
@@ -447,7 +455,6 @@ describe("Consolidate", () => {
             {amt: voteAmount3, dir: voteDirection3, msg: voterSignedMessage3, acc: voter3Accounts, signer: voter3},
             {amt: voteAmount4, dir: voteDirection4, msg: voterSignedMessage4, acc: voter4Accounts, signer: voter4},
             {amt: voteAmount5, dir: voteDirection5, msg: voterSignedMessage5, acc: voter5Accounts, signer: voter5},
-            {amt: voteAmount6, dir: voteDirection6, msg: voterSignedMessage6, acc: voter6Accounts, signer: voter6},
         ];
 
         for (var index in votesObjList) {
@@ -458,6 +465,77 @@ describe("Consolidate", () => {
 
             simulateTimeTravel(client, 1);
         }
+
+        // Fast forward in time again
+        secondsForwards = 48*60*60 - (10*60);   // 5 minutes before voting timeout
+        simulateTimeTravel(client, secondsForwards);
+
+        // Make sure that the votes can still be made at this point
+        await program.methods.vote(marketParams, new anchor.BN(voteAmount6), voteDirection6, [...voterSignedMessage6])
+                .accounts({ ...voter6Accounts})
+                .signers([voter6, treasury])
+                .rpc();
+
+        // Fast forward in time again
+        secondsForwards = 20*60;   // 15 minutes after voting timeout
+        simulateTimeTravel(client, secondsForwards);
+
+        // Shouldn't be allowed to vote after timeout
+        try {
+            await program.methods.vote(marketParams, new anchor.BN(voteAmount7), voteDirection7, [...voterSignedMessage7])
+                .accounts({ ...voter7Accounts})
+                .signers([voter7, treasury])
+                .rpc();
+        
+            assert(false, "Allowed vote after closing")
+        } catch (err) {
+            expect(err).to.be.instanceOf(AnchorError);
+            expect((err as AnchorError).error.errorCode.number).to.equal(6707);
+            expect((err as AnchorError).error.errorCode.code).to.equal("VotingClosed");
+        }
+
+        const consolidateBettor1accounts = {
+            treasury: treasury.publicKey,
+            signer: firstBettor.publicKey,
+            market: marketPda[0],
+            escrow: escrowPda[0],
+            bettor: initialiserPda[0],
+            poll: pollPda[0],
+            mint: mintPda,
+            recipient: bettor1Ata,
+            votingTokensProgram: mintProgramId,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            rent: SYSVAR_RENT_PUBKEY,
+        };
+
+        const consolidateVoter1accounts = {
+            treasury: treasury.publicKey,
+            signer: voter1.publicKey,
+            market: marketPda[0],
+            poll: pollPda[0],
+            voter: voter1Pda[0],
+            votingTokenAccount: voter1Ata,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            mint: mintPda,
+            systemProgram: SystemProgram.programId,
+            votingTokensProgram: mintProgramId,
+            rent: SYSVAR_RENT_PUBKEY,
+        };
+
+        // Start consolidations
+        await program.methods.wagerResults(marketParams)
+            .accounts({...consolidateBettor1accounts})
+            .signers([firstBettor, treasury])
+            .rpc();
+
+        simulateTimeTravel(client, 1);
+
+        await program.methods.voterResults(marketParams)
+            .accounts({...consolidateVoter1accounts})
+            .signers([voter1, treasury])
+            .rpc();
 
 
         // ----- EVALUATE ------

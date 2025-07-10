@@ -45,8 +45,6 @@ pub struct VoterResult<'info_vr> {
     pub voter: Box<Account<'info_vr, Voter>>,
     #[account(mut)]
     pub voting_token_account: Account<'info_vr, TokenAccount>,          // Should already be initialised
-    #[account(mut)]
-    pub treasury_voting_token_account: Account<'info_vr, TokenAccount>, // This should already be initialised with the treasury
     pub associated_token_program: Program<'info_vr, AssociatedToken>,
     #[account(mut)]
     pub mint: Account<'info_vr, Mint>,
@@ -73,10 +71,6 @@ impl<'info_vr> VoterResult<'info_vr> {
              &self.signer.key(),
              &mint_pk,
         );
-        let treasury_ata: Pubkey = get_associated_token_address(
-            &self.treasury.key(),
-            &mint_pk,
-        );
 
         let numerical_direction: &str = match self.voter.direction {
             true => "for",
@@ -101,7 +95,6 @@ impl<'info_vr> VoterResult<'info_vr> {
         //  - ATA needs to be correct                                                                           |       √
         //  - Mint PK needs to be correct                                                                       |       √
         //  - Voting Tokens Program needs to be correct                                                         |       √
-        //  - treasury_voting_token_account should be derivable from treasury account                           |       √
         //  - Market call_time must now exist                                                                   |       √
         require!(self.market.state == MarketState::Consolidating, ResultsError::VotingNotFinished);
         require!(vote_condition, ResultsError::NotAVoter);
@@ -112,7 +105,6 @@ impl<'info_vr> VoterResult<'info_vr> {
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
         require!(self.mint.key() == mint_pk, MintError::NotTheRightMintPK);
         require!(self.voting_tokens_program.key() == mint_program_pk, MintError::NotTheRightMintProgramPK);
-        require!(treasury_ata == self.treasury_voting_token_account.key(), VotingError::IncorrectTreasuryATA);
         require!(self.market.call_time.is_some(), ResultsError::NoCallTime);
 
         if self.poll.total_for == self.poll.total_against {
@@ -164,9 +156,10 @@ impl<'info_vr> VoterResult<'info_vr> {
     ) -> Result<()> {
 
         let accounts: MintTokens<'_> = MintTokens{
-            payer: self.signer.to_account_info(),
+            payer: self.treasury.to_account_info(),
+            recipient: self.signer.to_account_info(),
             mint: self.mint.to_account_info(),
-            recipient: to,
+            recipient_ata: to,
             associated_token_program: self.associated_token_program.to_account_info(),
             system_program: self.system_program.to_account_info(),
             token_program: self.token_program.to_account_info(),
