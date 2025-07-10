@@ -165,11 +165,11 @@ describe("Place Bets", () => {
         const [signedMessage1, signedMessage2, signedMessage3, signedMessage4, signedMessage5, signedMessage6] = Array.from(
             [
                 {account: firstBettor, amount: amount1},
-                {account: bettor2, betAmount: amount2},
-                {account: bettor3, betAmount: amount3},
-                {account: bettor4, betAmount: amount4},
-                {account: bettor5, betAmount: amount5},
-                {account: bettor6, betAmount: amount6},
+                {account: bettor2, amount: amount2},
+                {account: bettor3, amount: amount3},
+                {account: bettor4, amount: amount4},
+                {account: bettor5, amount: amount5},
+                {account: bettor6, amount: amount6},
             ],
             (b) => {
                 const str = authensusToken.toString() + "1" + "truthfulness" + b.account.publicKey.toString() + b.amount.toString();

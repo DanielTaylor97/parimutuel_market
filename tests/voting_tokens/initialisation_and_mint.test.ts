@@ -293,6 +293,9 @@ describe("voting_tokens init", () => {
       };
 
 
+      const treasury = loadKeypairFromFile("authensus_treasury_keypair.json");
+
+
       // ------ EXECUTE ------
 
       const tx = await program.methods.mintTokens(new anchor.BN(amount))
