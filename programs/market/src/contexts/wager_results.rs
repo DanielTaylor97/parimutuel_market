@@ -14,7 +14,7 @@ use voting_tokens::{
     id as get_voting_tokens_program_id,
 };
 
-use crate::constants::{MAX_CONSOLIDATION_PERIOD, PERCENTAGE_WINNINGS_KEPT, TREASURY_ADDRESS, VOTE_THRESHOLD};
+use crate::constants::{MAX_CONSOLIDATION_PERIOD, PERCENTAGE_WINNINGS_KEPT, TREASURY_ADDRESS, VOTING_TIMEOUT};
 use crate::error::{FacetError, MintError, ResultsError, TokenError, TreasuryError, VotingError};
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
 use crate::utils::functions::{compute_returns, verify_signature};
@@ -73,6 +73,8 @@ impl<'info_wr> WagerResult<'info_wr> {
         params: &MarketParams,
     ) -> Result<()> {
 
+        let time: i64 = Clock::get()?.unix_timestamp;
+
         let mint_program_pk: Pubkey = get_voting_tokens_program_id();
         let mint_pk: Pubkey= Pubkey::find_program_address(
             &[b"mint"],
@@ -95,7 +97,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         }
 
         // Requirements:                                                        |   Implemented:
-        //  - Voting is finished                                                |       √
+        //  - Voting is finished                                                |       
         //  - Bets are ligitimate (signed by treasury)                          |       √
         //  - The person should not yet have had their votes consolidated       |       √
         //  - Market should contain the given facet                             |       √
@@ -104,7 +106,7 @@ impl<'info_wr> WagerResult<'info_wr> {
         //  - ATA needs to be correct                                           |       √
         //  - Mint account ID needs to be correct                               |       √
         //  - Voting Tokens Program needs to be correct                         |       √
-        require!(self.poll.total_for + self.poll.total_against >= VOTE_THRESHOLD, ResultsError::VotingNotFinished);
+        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT < time, ResultsError::VotingNotFinished);
         require!(bets_condition, TreasuryError::MessageNotValid);
         require!(self.bettor.tot_for + self.bettor.tot_against + self.bettor.tot_underdog > 0, ResultsError::BettorAlreadyConsolidated);
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);

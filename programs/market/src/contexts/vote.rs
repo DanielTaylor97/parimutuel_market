@@ -9,7 +9,7 @@ use voting_tokens::{
     id as get_voting_tokens_program_id,
 };
 
-use crate::constants::{MAX_VOTE_AMOUNT, MIN_VOTE_AMOUNT, VOTE_THRESHOLD};
+use crate::constants::{MAX_VOTE_AMOUNT, MIN_VOTE_AMOUNT, VOTING_TIMEOUT};
 use crate::error::{FacetError, MintError, TokenError, TreasuryError, VotingError};
 use crate::states::{Bettor, Market, MarketParams, MarketState, Poll, Voter};
 use crate::utils::functions::verify_signature;
@@ -101,7 +101,7 @@ impl<'info_v> Vote<'info_v> {
         //  - The betting round has finished                                    |       √
         //  - Market state must be betting (to be changed) or voting            |       √
         //  - Cannot have voted here already                                    |       √
-        //  - Voting threshold cannot have been reached yet                     |       √
+        //  - Voting period cannot be over                                      |       √
         //  - ATA needs to be correct                                           |       √
         //  - ATA must have sufficient tokens for this vote                     |       √
         //  - Vote amount must be higher than minimum                           |       √
@@ -115,7 +115,7 @@ impl<'info_v> Vote<'info_v> {
         require!(self.market.start_time + self.market.timeout < time, VotingError::NotVotingTime);
         require!(self.market.state == MarketState::Betting || self.market.state == MarketState::Voting, VotingError::NotVotingTime);
         require!(self.voter.amount == 0, VotingError::AlreadyVoted);
-        require!(self.poll.total_for + self.poll.total_against < VOTE_THRESHOLD.into(), VotingError::VotingClosed);    // Better to do time- or threshold-based?
+        require!(self.market.start_time + self.market.timeout + VOTING_TIMEOUT < time, VotingError::VotingClosed);
         require!(signer_ata == self.voting_token_account.key(), VotingError::IncorrectATA);
         require!(self.voting_token_account.amount >= amount, VotingError::InsufficientVotingTokens);
         require!(amount >= MIN_VOTE_AMOUNT, VotingError::AmountTooLow);

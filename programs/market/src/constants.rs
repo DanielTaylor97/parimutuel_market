@@ -15,7 +15,8 @@ pub const MIN_WAGER: u64 = 100_000;                 // Minimum wager to enter th
 // VOTING
 pub const MAX_VOTE_AMOUNT: u64 = 100*LAMPORTS_PER_SOL;  // Max number of votes per voter
 pub const MIN_VOTE_AMOUNT: u64 = 1_000_000;             // Min number of votes per voter
-pub const VOTE_THRESHOLD: u16 = 1_000;                  // Max number of votes in a poll
+pub const VOTING_TIMEOUT: i64 = 48*60*60;               // Time limit for the voting window
+// pub const VOTE_THRESHOLD: u16 = 1_000;                  // Max number of votes in a poll
 
 // CONSOLIDATION
 pub const PERCENTAGE_WINNINGS_KEPT: u64 = 95;       // How much of the winnings pot is received by the winning bettors (%)
