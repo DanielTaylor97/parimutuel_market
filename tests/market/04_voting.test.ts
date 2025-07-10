@@ -539,8 +539,9 @@ describe("Place Votes", () => {
         assert((await onChainV5).amount.toNumber() == voteAmount5 && (await onChainV5).direction == voteDirection5);
         assert((await onChainV6).amount.toNumber() == voteAmount6 && (await onChainV6).direction == voteDirection6);
 
-        const totFor = voteAmount1*(voteDirection1 ? 1 : 0) + voteAmount2*(voteDirection2 ? 1 : 0) + voteAmount3*(voteDirection3 ? 1 : 0) + voteAmount4*(voteDirection4 ? 1 : 0) + voteAmount5*(voteDirection5 ? 1 : 0) + voteAmount6*(voteDirection1 ? 1 : 0)
-        const totAgainst = voteAmount1*(voteDirection1 ? 0 : 1) + voteAmount2*(voteDirection2 ? 0 : 1) + voteAmount3*(voteDirection3 ? 0 : 1) + voteAmount4*(voteDirection4 ? 0 : 1) + voteAmount5*(voteDirection5 ? 0 : 1) + voteAmount6*(voteDirection1 ? 0 : 1);
+        const totFor = (voteDirection1 ? 1 : 0) + (voteDirection2 ? 1 : 0) + (voteDirection3 ? 1 : 0) + (voteDirection4 ? 1 : 0) + (voteDirection5 ? 1 : 0) + (voteDirection1 ? 1 : 0)
+        const totAgainst = (voteDirection1 ? 0 : 1) + (voteDirection2 ? 0 : 1) + (voteDirection3 ? 0 : 1) + (voteDirection4 ? 0 : 1) + (voteDirection5 ? 0 : 1) + (voteDirection1 ? 0 : 1);
+        
         assert(onChainPoll.totalFor == totFor);
         assert(onChainPoll.totalAgainst == totAgainst);
         
