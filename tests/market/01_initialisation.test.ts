@@ -1,14 +1,18 @@
-// As this is currently implemented we cannot run it in parallel with the voting token mint tests as they require the mint already to have been initialised.
-// We can get around this by running test suites one at a time with ```anchor run test``` on a validator node run in the background.
-// Full set of commands in order from deletion of `target` folder, or first build:
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor build --no-idl```
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p market -o target/idl/market.json -t target/types/market.ts```
+// Due to conflicts with the proc-macro2 crate regarding versions of solana, rustup and anchor, we cannot just use ```anchor build``` and ```anchor test```.
+// To build we must first use
+// ```anchor build --no-idl```
+// followed by building each of the programs individually using nightly build from before the versioning issue:
 // ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p voting_tokens -o target/idl/voting_tokens.json -t target/types/voting_tokens.ts```
-// ```solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so```
-// [separate terminal]
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor deploy```
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-voting-tokens```
-// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor run test-market```
+// or
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor idl build -p market -o target/idl/market.json -t target/types/market.ts```
+//
+//
+//
+// As this is currently implemented we cannot run it in parallel with the market tests as they create their own mint for testing, which will cause reinitialisation errors.
+// Run each test suite separately using
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor test --run tests/voting_tokens/*.ts```
+// or
+// ```RUSTUP_TOOLCHAIN=nightly-2025-04-01 anchor test --run tests/market/*.ts```
 
 import { readFileSync } from "fs";
 import { homedir } from "os";
@@ -269,6 +273,12 @@ describe("Initialise Market", () => {
 
 
     // ----- EVALUATE ------
+
+    const onChainMarket = await program.account.market.fetch(marketPda[0]);
+    
+    assert(onChainMarket.state.initialised, `Market state: ${onChainMarket.state}`);
+    assert(onChainMarket.round == 0, `Market on round ${onChainMarket.round}`);
+    assert(onChainMarket.timeout.toNumber() == timeout, `Timeout on chain: ${onChainMarket.timeout.toNumber()}; timeout supplied: ${timeout}`);
 
     console.log("Market init signature", tx);
 

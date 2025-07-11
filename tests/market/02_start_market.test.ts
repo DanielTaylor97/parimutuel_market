@@ -174,6 +174,22 @@ describe("Start Market", () => {
 
         // ----- EVALUATE ------
 
+        const onChainMarket = await program.account.market.fetch(marketPda[0]);
+        
+        assert(onChainMarket.state.betting, `Market state: ${onChainMarket.state}`);
+        assert(onChainMarket.round == 1, `Market on round ${onChainMarket.round}`);
+
+        const onChainInitialiser = await program.account.bettor.fetch(initialiserPda[0]);
+
+        assert(onChainInitialiser.totFor.toNumber() + onChainInitialiser.totAgainst.toNumber() + onChainInitialiser.totUnderdog.toNumber() == amount, "Total doesn't add up");
+
+        const onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
+
+        assert(onChainEscrow.nBets == 1, `Number of bets: ${onChainEscrow.nBets}`);
+        assert(onChainEscrow.totFor.toNumber() == amount, `Bets for: ${onChainEscrow.totFor}`);
+        assert(onChainEscrow.totAgainst.toNumber() == 0, `Bets against: ${onChainEscrow.totAgainst}`);
+        assert(onChainEscrow.totUnderdog.toNumber() == 0, `Underdog bets: ${onChainEscrow.totUnderdog}`);
+
         assert(true);
 
     });

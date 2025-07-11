@@ -550,6 +550,11 @@ describe("Place Votes", () => {
 
         // ----- EVALUATE ------
 
+
+        const onChainMarket = await program.account.market.fetch(marketPda[0]);
+        console.log(`Market state: ${onChainMarket.state.initialised}, ${onChainMarket.state.inactive}, ${onChainMarket.state.betting}, ${onChainMarket.state.voting}, ${onChainMarket.state.consolidating}`);
+
+        assert(onChainMarket.state.voting, `Market state: ${onChainMarket.state}`);
         
         const onChainPoll = await program.account.poll.fetch(pollPda[0]);
         const [onChainV1, onChainV2, onChainV3, onChainV4, onChainV5, onChainV6] = Array.from(

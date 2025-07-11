@@ -566,6 +566,22 @@ describe("Consolidate", () => {
             simulateTimeTravel(client, 1);
         }
 
+        let onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
+        let [onChainB1, onChainB2, onChainB3, onChainB4, onChainB5, onChainB6] = Array.from(
+            [initialiserPda[0], bettor2Pda[0], bettor3Pda[0], bettor4Pda[0], bettor5Pda[0], bettor6Pda[0]],
+            async (a) => {
+                return await program.account.bettor.fetch(a)
+            }
+        );
+
+        assert(onChainEscrow.betsConsolidated == (onChainEscrow.nBets - 1), `Bets consolidated: ${onChainEscrow.betsConsolidated}; number of bets: ${onChainEscrow.nBets}`);
+        assert((await onChainB1).totAgainst.toNumber() + (await onChainB1).totFor.toNumber() + (await onChainB1).totUnderdog.toNumber() == 0, "Bettor 1 not consolidated");
+        assert((await onChainB2).totAgainst.toNumber() + (await onChainB2).totFor.toNumber() + (await onChainB2).totUnderdog.toNumber() == 0, "Bettor 2 not consolidated");
+        assert((await onChainB3).totAgainst.toNumber() + (await onChainB3).totFor.toNumber() + (await onChainB3).totUnderdog.toNumber() == 0, "Bettor 3 not consolidated");
+        assert((await onChainB4).totAgainst.toNumber() + (await onChainB4).totFor.toNumber() + (await onChainB4).totUnderdog.toNumber() == 0, "Bettor 4 not consolidated");
+        assert((await onChainB5).totAgainst.toNumber() + (await onChainB5).totFor.toNumber() + (await onChainB5).totUnderdog.toNumber() == betAmount5, "Bettor 5 was consolidated");
+        assert((await onChainB6).totAgainst.toNumber() + (await onChainB6).totFor.toNumber() + (await onChainB6).totUnderdog.toNumber() == 0, "Bettor 6 not consolidated");
+
         const voteConsolidationArray = [
             { v: voter1, acc: consolidateVoter1accounts },
             { v: voter2, acc: consolidateVoter2accounts },
@@ -582,6 +598,22 @@ describe("Consolidate", () => {
 
             simulateTimeTravel(client, 1);
         }
+
+        let onChainPoll = await program.account.poll.fetch(pollPda[0]);
+        const [onChainV1, onChainV2, onChainV3, onChainV4, onChainV5, onChainV6] = Array.from(
+            [voter1Pda[0], voter2Pda[0], voter3Pda[0], voter4Pda[0], voter5Pda[0], voter6Pda[0]],
+            async (a) => {
+                return await program.account.voter.fetch(a)
+            }
+        );
+
+        assert(onChainPoll.totalAgainst + onChainPoll.totalFor == onChainPoll.totalConsolidated, `Votes consolidated: ${onChainPoll.totalConsolidated}; number of votes: ${onChainPoll.totalAgainst + onChainPoll.totalFor}`);
+        assert((await onChainV1).amount.toNumber() == 0, "Voter 1 not consolidated");
+        assert((await onChainV2).amount.toNumber() == 0, "Voter 2 not consolidated");
+        assert((await onChainV3).amount.toNumber() == 0, "Voter 3 not consolidated");
+        assert((await onChainV4).amount.toNumber() == 0, "Voter 4 not consolidated");
+        assert((await onChainV5).amount.toNumber() == 0, "Voter 5 not consolidated");
+        assert((await onChainV6).amount.toNumber() == 0, "Voter 6 not consolidated");
 
         const callMarketAccounts = {
             admin: treasury.publicKey,
@@ -606,7 +638,8 @@ describe("Consolidate", () => {
 
         // 50-50 as to whether the market will be brought into a closable state by time or by completion of consolidations
         // Both conditions should work
-        if (Math.random() > 0.5) {  // √
+        const consolidateBettorRoute = Math.random() > 0.5;
+        if (consolidateBettorRoute) {  // √
 
             await program.methods.wagerResults(marketParams)
                 .accounts({...consolidateBettor5accounts})
@@ -622,39 +655,34 @@ describe("Consolidate", () => {
 
         }
 
+        onChainB5 = program.account.bettor.fetch(bettor5Pda[0]);
+
+        if (consolidateBettorRoute) {
+            assert((await onChainB5).totAgainst.toNumber() + (await onChainB5).totFor.toNumber() + (await onChainB5).totUnderdog.toNumber() == 0, "Bettor 5 not consolidated");
+        } else {
+            assert((await onChainB5).totAgainst.toNumber() + (await onChainB5).totFor.toNumber() + (await onChainB5).totUnderdog.toNumber() == betAmount5, "Bettor 5 was consolidated");
+        }
+
         // Now call the market
         await program.methods.callMarket(marketParams)
             .accounts({ ...callMarketAccounts})
             .signers([treasury])
             .rpc();
+        
+        simulateTimeTravel(client, 1);
 
 
 
         // ----- EVALUATE ------
-
-
-        /*
-        const onChainPoll = await program.account.poll.fetch(pollPda[0]);
-        const [onChainV1, onChainV2, onChainV3, onChainV4, onChainV5, onChainV6] = Array.from(
-            [voter1Pda[0], voter2Pda[0], voter3Pda[0], voter4Pda[0], voter5Pda[0], voter6Pda[0]],
-            async (a) => {
-                return await program.account.voter.fetch(a)
-            }
-        );
-
-        assert((await onChainV1).amount.toNumber() == voteAmount1 && (await onChainV1).direction == voteDirection1);
-        assert((await onChainV2).amount.toNumber() == voteAmount2 && (await onChainV2).direction == voteDirection2);
-        assert((await onChainV3).amount.toNumber() == voteAmount3 && (await onChainV3).direction == voteDirection3);
-        assert((await onChainV4).amount.toNumber() == voteAmount4 && (await onChainV4).direction == voteDirection4);
-        assert((await onChainV5).amount.toNumber() == voteAmount5 && (await onChainV5).direction == voteDirection5);
-        assert((await onChainV6).amount.toNumber() == voteAmount6 && (await onChainV6).direction == voteDirection6);
-
-        const totFor = (voteDirection1 ? 1 : 0) + (voteDirection2 ? 1 : 0) + (voteDirection3 ? 1 : 0) + (voteDirection4 ? 1 : 0) + (voteDirection5 ? 1 : 0) + (voteDirection1 ? 1 : 0)
-        const totAgainst = (voteDirection1 ? 0 : 1) + (voteDirection2 ? 0 : 1) + (voteDirection3 ? 0 : 1) + (voteDirection4 ? 0 : 1) + (voteDirection5 ? 0 : 1) + (voteDirection1 ? 0 : 1);
         
-        assert(onChainPoll.totalFor == totFor);
-        assert(onChainPoll.totalAgainst == totAgainst);
-        */
+        onChainPoll = await program.account.poll.fetch(pollPda[0]);
+        onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
+        const onChainMarket = await program.account.market.fetch(marketPda[0]);
+        console.log(`Market state: ${onChainMarket.state.initialised}, ${onChainMarket.state.inactive}, ${onChainMarket.state.betting}, ${onChainMarket.state.voting}, ${onChainMarket.state.consolidating}`);
+
+        assert(onChainPoll.totalAgainst == 0 && onChainPoll.totalFor == 0 && onChainPoll.totalConsolidated == 0, `Poll not closed`);
+        assert(onChainEscrow.nBets == 0 && onChainEscrow.betsConsolidated == 0 && onChainEscrow.totFor.toNumber() == 0 && onChainEscrow.totAgainst.toNumber() == 0 && onChainEscrow.totUnderdog.toNumber() == 0, `Escrow not closed`);
+        assert(onChainMarket.state.inactive, `Market state: ${onChainMarket.state}`);
         
     });
 

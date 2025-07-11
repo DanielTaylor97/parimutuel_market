@@ -253,6 +253,14 @@ describe("Place Bets", () => {
             expect((err as AnchorError).error.errorCode.code).to.equal("BetWithUnderdogBet");
         }
 
+
+        // ----- EVALUATE ------
+
+        const onChainMarket = await program.account.market.fetch(marketPda[0]);
+        console.log(`Market state: ${onChainMarket.state.initialised}, ${onChainMarket.state.inactive}, ${onChainMarket.state.betting}, ${onChainMarket.state.voting}, ${onChainMarket.state.consolidating}`);
+
+        assert(onChainMarket.state.betting, `Market state: ${onChainMarket.state}`);
+
         const onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
         const [onChainB1, onChainB2, onChainB3, onChainB4, onChainB5, onChainB6] = Array.from(
             [initialiserPda[0], bettor2Pda[0], bettor3Pda[0], bettor4Pda[0], bettor5Pda[0], bettor6Pda[0]],
@@ -270,9 +278,6 @@ describe("Place Bets", () => {
         assert((await onChainB5).totUnderdog.toNumber() == amount5);
         assert((await onChainB6).totAgainst.toNumber() + (await onChainB6).totFor.toNumber() == amount6);
         assert(onChainEscrow.totAgainst.toNumber() + onChainEscrow.totFor.toNumber() + onChainEscrow.totUnderdog.toNumber() == amount1 + amount2 + amount3 + amount4 + amount5 + amount6);
-
-
-        // ----- EVALUATE ------
 
         assert(true);
 
