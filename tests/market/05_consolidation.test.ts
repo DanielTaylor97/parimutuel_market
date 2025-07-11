@@ -677,12 +677,45 @@ describe("Consolidate", () => {
         
         onChainPoll = await program.account.poll.fetch(pollPda[0]);
         onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
-        const onChainMarket = await program.account.market.fetch(marketPda[0]);
+        let onChainMarket = await program.account.market.fetch(marketPda[0]);
         console.log(`Market state: ${onChainMarket.state.initialised}, ${onChainMarket.state.inactive}, ${onChainMarket.state.betting}, ${onChainMarket.state.voting}, ${onChainMarket.state.consolidating}`);
 
         assert(onChainPoll.totalAgainst == 0 && onChainPoll.totalFor == 0 && onChainPoll.totalConsolidated == 0, `Poll not closed`);
         assert(onChainEscrow.nBets == 0 && onChainEscrow.betsConsolidated == 0 && onChainEscrow.totFor.toNumber() == 0 && onChainEscrow.totAgainst.toNumber() == 0 && onChainEscrow.totUnderdog.toNumber() == 0, `Escrow not closed`);
         assert(onChainMarket.state.inactive, `Market state: ${onChainMarket.state}`);
+        assert(onChainMarket.round == 1, `Market round: ${onChainMarket.round}`);
+        
+        // Check if starting a new round works
+        const restartMarketAccounts = {
+            signer: bettor3.publicKey,
+            treasury: treasury.publicKey,
+            market: marketPda[0],
+            escrow: escrowPda[0],
+            poll: pollPda[0],
+            initialiser: bettor3Pda[0],
+            system_program: SystemProgram.programId,
+        };
+        await program.methods.startMarket(marketParams, new anchor.BN(betAmount3), true, [...bettorSignedMessage3]) // Just for simplicity's sake, bet true
+            .accounts({...restartMarketAccounts})
+            .signers([bettor3])
+            .rpc();
+        
+        simulateTimeTravel(client, 1);
+
+        onChainMarket = await program.account.market.fetch(marketPda[0]);
+        assert(onChainMarket.round == 2, `Market round: ${onChainMarket.round}`);
+        assert(onChainMarket.state.betting, `Market state: ${onChainMarket.state}`);
+
+        onChainB3 = program.account.bettor.fetch(bettor3Pda[0]);
+
+        assert((await onChainB3).totFor.toNumber() == betAmount3, "Total doesn't add up");
+
+        onChainEscrow = await program.account.escrow.fetch(escrowPda[0]);
+
+        assert(onChainEscrow.nBets == 1, `Number of bets: ${onChainEscrow.nBets}`);
+        assert(onChainEscrow.totFor.toNumber() == betAmount3, `Bets for: ${onChainEscrow.totFor}`);
+        assert(onChainEscrow.totAgainst.toNumber() == 0, `Bets against: ${onChainEscrow.totAgainst}`);
+        assert(onChainEscrow.totUnderdog.toNumber() == 0, `Underdog bets: ${onChainEscrow.totUnderdog}`);
         
     });
 
