@@ -1,2 +1,9 @@
-/target/debug
+/.anchor
+
 /node_modules
+
+/target
+
+/test-ledger
+
+authensus_treasury_keypair.json
