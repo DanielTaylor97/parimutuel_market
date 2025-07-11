@@ -1,4 +1,4 @@
-use anchor_lang::prelude::{borsh::{BorshDeserialize, BorshSerialize}, *};
+use anchor_lang::prelude::*;
 use anchor_spl::{
     metadata::{
         create_metadata_accounts_v3,
@@ -9,6 +9,7 @@ use anchor_spl::{
     token::{Mint, Token},
 };
 
+use crate::constants::TREASURY_ADDRESS;
 use crate::error::InitError;
 
 #[derive(Accounts)]
@@ -25,6 +26,7 @@ pub struct Initialise<'info_i> {
         mint::authority = mint
     )]
     pub mint: Account<'info_i, Mint>,
+    /// CHECK: Metaplex account that will be checked by the mpl program
     #[account(mut)]
     pub metadata: UncheckedAccount<'info_i>,
     pub system_program: Program<'info_i, System>,
@@ -33,7 +35,7 @@ pub struct Initialise<'info_i> {
     pub rent: Sysvar<'info_i, Rent>,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct InitTokenParams {
     name: String,
     symbol: String,
@@ -50,10 +52,12 @@ impl<'info_i> Initialise<'info_i> {
     ) -> Result<()> {
 
         // Requirements:                        |   Implemented:
+        //  - Signer should be the treasury     |       √
         //  - Name is `AuthensusVotingToken`    |       √
         //  - Symbol is `AUTHVOTE`              |       √
         //  - URI should be empty               |       √
         //  - Decimals should be 9              |       √
+        require!(self.signer.key().to_string() == TREASURY_ADDRESS, InitError::WrongSigner);
         require!(metadata.name == "AuthensusVotingToken".to_string(), InitError::WrongName);
         require!(metadata.symbol == "AUTHVOTE".to_string(), InitError::WrongSymbol);
         require!(metadata.uri == "".to_string(), InitError::WrongUri);

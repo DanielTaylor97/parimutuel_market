@@ -1,9 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::states::{Escrow, Market, MarketParams, MarketState, Poll};
-use crate::constants::TREASURY_AUTHORITY;
-use crate::error::{FacetError, MarketError, ResultsError, TreasuryError};
-use crate::utils::functions::vec_eq;
+use crate::error::MarketError;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -15,66 +13,57 @@ pub struct CallMarket<'info_c> {
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_c, Market>,
+    pub market: Box<Account<'info_c, Market>>,
     #[account(
         mut,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_c, Poll>,
+    pub poll: Box<Account<'info_c, Poll>>,
     #[account(
         mut,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_c, Escrow>,
+    pub escrow: Box<Account<'info_c, Escrow>>,
 }
 
 impl<'info_c> CallMarket<'info_c> {
 
     pub fn end(
         &mut self,
-        params: &MarketParams,
+        _params: &MarketParams,
     ) -> Result<()> {
 
-        if self.escrow.bettors.is_none() || self.escrow.bettors_consolidated.is_none() || self.poll.voters.is_none() || self.poll.voters_consolidated.is_none() {
-            return Err(anchor_lang::error!(ResultsError::NotAllBetsConsolidated))
+        let time: i64 = Clock::get()?.unix_timestamp;
+
+        let end_condition: bool;
+        if let Some(call_time) = self.market.call_time {
+            end_condition = (self.escrow.bets_consolidated == self.escrow.n_bets && self.poll.total_consolidated == self.poll.total_for + self.poll.total_against) || call_time < time;
+        } else {
+            end_condition = false;  // Definitely don't end the market if the call time doesn't have an i64 value
         }
 
-        let bet_consolidation: bool = vec_eq(self.escrow.bettors.clone().as_mut().unwrap(), self.escrow.bettors_consolidated.clone().as_mut().unwrap());
-        let vote_consolidation: bool = vec_eq(self.poll.voters.clone().as_mut().unwrap(), self.poll.voters_consolidated.clone().as_mut().unwrap());
-
-        // Requirements:                                                        |   Implemented:
-        //  - Market State should be Consolidating                              |       √
-        //  - escrow and poll should have the same market, which is this market |       √
-        //  - escrow and poll should have the same facet                        |       √
-        //  - escrow/poll facet should be in the market facets vec              |       √
-        //  - SOL has been reimbursed as necessary                              |       √
-        //  - Tokens have been reimbursed as necessary                          |       √
-        //  - Admin should be the treasury authority                            |       √
+        // Requirements:                                                                |   Implemented:
+        //  - Market State should be Consolidating                                      |       √
+        //  - All bets and votes must be reimbursed OR the call_time has been reached   |       √
         require!(self.market.state == MarketState::Consolidating, MarketError::MarketInWrongState);
-        require!(self.market.key() == self.escrow.market && self.market.key() == self.poll.market && self.market.token == params.authensus_token, MarketError::NotTheSameMarket);
-        require!(self.escrow.facet == self.poll.facet && self.escrow.facet == params.facet, FacetError::NotTheSameFacet);
-        require!(self.market.facets.contains(&self.escrow.facet), FacetError::FacetNotInMarket);
-        require!(bet_consolidation, ResultsError::NotAllBetsConsolidated);
-        require!(vote_consolidation, ResultsError::NotAllVotesConsolidated);
-        require!(self.admin.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(end_condition, MarketError::MarketInWrongState);
 
         // Set market inactive
         self.market.state = MarketState::Inactive;
 
         // Empty escrow
-        self.escrow.bettors = None;
-        self.escrow.bettors_consolidated = None;
+        self.escrow.n_bets = 0_u16;
+        self.escrow.bets_consolidated = 0_u16;
         self.escrow.tot_for = 0_u64;
         self.escrow.tot_against = 0_u64;
         self.escrow.tot_underdog = 0_u64;
 
         // Empty poll
-        self.poll.voters = None;
-        self.poll.voters_consolidated = None;
-        self.poll.total_for = 0_u64;
-        self.poll.total_against = 0_u64;
+        self.poll.total_for = 0_u16;
+        self.poll.total_against = 0_u16;
+        self.poll.total_consolidated = 0_u16;
 
         Ok(())
     }

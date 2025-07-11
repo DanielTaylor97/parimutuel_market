@@ -1,13 +1,9 @@
 use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
 
-use treasury::{
-    self,
-    Treasury,
-};
-
 use crate::states::{Bettor, Escrow, Market, MarketParams, MarketState, Poll};
-use crate::constants::TREASURY_AUTHORITY;
-use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError, VotingError};
+use crate::constants::{MIN_WAGER, TREASURY_ADDRESS};
+use crate::error::{BettingError, FacetError, MarketError, TokenError, TreasuryError};
+use crate::utils::functions::verify_signature;
 
 #[derive(Accounts)]
 #[instruction(params: MarketParams)]
@@ -15,39 +11,37 @@ pub struct StartMarket<'info_s> {
     #[account(mut)]
     pub signer: Signer<'info_s>,
     #[account(mut)]
-    pub treasury_auth: Signer<'info_s>,
+    pub treasury: SystemAccount<'info_s>,
     #[account(
         mut,
         seeds = [b"market", params.authensus_token.as_ref()],
         bump,
     )]
-    pub market: Account<'info_s, Market>,
+    pub market: Box<Account<'info_s, Market>>,
     #[account(
         init_if_needed,
-        space = Escrow::INIT_SPACE,
+        space = 8 + Escrow::INIT_SPACE,
         payer = signer,
         seeds = [b"escrow", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub escrow: Account<'info_s, Escrow>,
+    pub escrow: Box<Account<'info_s, Escrow>>,
     #[account(
         init_if_needed,
-        space = Poll::INIT_SPACE,
+        space = 8 + Poll::INIT_SPACE,
         payer = signer,
         seeds = [b"poll", params.authensus_token.as_ref(), params.facet.to_string().as_bytes()],
         bump,
     )]
-    pub poll: Account<'info_s, Poll>,
+    pub poll: Box<Account<'info_s, Poll>>,
     #[account(
         init_if_needed,
-        space = Bettor::INIT_SPACE,
+        space = 8 + Bettor::INIT_SPACE,
         payer = signer,
         seeds = [b"bettor", params.authensus_token.as_ref(), params.facet.to_string().as_bytes(), signer.key().as_ref()],
         bump,
     )]
-    pub initialiser: Account<'info_s, Bettor>,
-    #[account(mut)]
-    pub treasury: Account<'info_s, Treasury>,       // Should already be initialised
+    pub initialiser: Box<Account<'info_s, Bettor>>,
     pub system_program: Program<'info_s, System>,
 }
 
@@ -63,43 +57,31 @@ impl<'info_s> StartMarket<'info_s> {
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
         //  - Market must either be in an initialised state or inactive         |       √
-        //  - There should be no bettors and no bets in the escrow              |       √
-        //  - There should be no voters and no votes in the poll                |       √
-        //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
         require!(self.market.state == MarketState::Initialised || self.market.state == MarketState::Inactive, MarketError::MarketInWrongState);
-        require!(self.escrow.bettors == None && self.escrow.bettors_consolidated == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
-        require!(self.poll.voters == None && self.poll.voters_consolidated == None && self.poll.total_for + self.poll.total_against == 0, VotingError::StartingWithVotesInPlace);
-        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
 
         let start_time = Clock::get()?.unix_timestamp;
 
         self.escrow.set_inner(
             Escrow {
-                bump: bumps.escrow,             // u8
-                initialiser: self.signer.key(), // Pubkey
-                market: params.authensus_token, // Pubkey
-                facet: params.facet.clone(),    // Facet
-                bettors: None,                  // Option<Vec<Pubkey>>
-                bettors_consolidated: None,     // Option<Vec<Pubkey>>
-                tot_for: 0_u64,                 // u64
-                tot_against: 0_u64,             // u64
-                tot_underdog: 0_u64             // u64
+                bump: bumps.escrow,         // u8
+                n_bets: 0_u16,              // u16
+                bets_consolidated: 0_u16,   // u16
+                tot_for: 0_u64,             // u64
+                tot_against: 0_u64,         // u64
+                tot_underdog: 0_u64         // u64
             }
         );
 
         self.poll.set_inner(
             Poll {
-                bump: bumps.poll,               // u8
-                market: params.authensus_token, // Pubkey
-                facet: params.facet.clone(),    // Facet
-                voters: None,                   // Option<Vec<Pubkey>>
-                voters_consolidated: None,      // Option<Vec<Pubkey>>
-                total_for: 0_u64,               // u64
-                total_against: 0_u64,           // u64
+                bump: bumps.poll,           // u8
+                total_for: 0_u16,           // u16
+                total_against: 0_u16,       // u16
+                total_consolidated: 0_u16,  // u16
             }
         );
 
@@ -117,25 +99,30 @@ impl<'info_s> StartMarket<'info_s> {
         params: &MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
+
+        let total = (self.initialiser.tot_for + self.initialiser.tot_against + self.initialiser.tot_underdog + amount).to_string();
+        let wager_message_str = params.authensus_token.to_string() + &self.market.round.to_string() + &params.facet.to_string() + &self.signer.key().to_string() + &total;
+        let wager_message: &[u8] = wager_message_str.as_bytes();
 
         // Requirements:                                                        |   Implemented:
         //  - The given facet must exist in the market                          |       √
         //  - The token must be the same as that which instantiated the market  |       √
-        //  - There should be no bottors and no bets in the escrow              |       √
-        //  - Initialiser should have sufficient funds to make the bet          |       √
+        //  - Provided message must be signed by the treasury account           |       √
+        //  - Signer should have sufficient funds to make the bet               |       √
         //  - Market should now be in a betting state                           |       √
-        //  - Treasury authority should be the same as treasury_auth            |       √
-        //  - Treasury authority should be the same as on record                |       √
+        //  - Treasury should have the expected address                         |       √
+        //  - Wager should be greater than the minimum                          |       √
         require!(self.market.facets.contains(&params.facet), FacetError::FacetNotInMarket);
         require!(self.market.token == params.authensus_token, TokenError::NotTheSameToken);
-        require!(self.escrow.bettors == None && self.escrow.tot_for + self.escrow.tot_against == 0, BettingError::StartingWithBetsInPlace);
-        require!(self.initialiser.get_lamports() > amount, BettingError::InsufficientFunds);
+        require!(verify_signature(signed_message, wager_message), TreasuryError::MessageNotValid);
+        require!(self.signer.get_lamports() > amount, BettingError::InsufficientFunds);
         require!(self.market.state == MarketState::Betting, BettingError::MarketNotInBettingState);
-        require!(self.treasury_auth.key() == self.treasury.authority, TreasuryError::TreasuryAuthoritiesDontMatch);
-        require!(self.treasury_auth.key().to_string() == TREASURY_AUTHORITY, TreasuryError::WrongTreasuryAuthority);
+        require!(self.treasury.key().to_string() == TREASURY_ADDRESS, TreasuryError::WrongTreasury);
+        require!(amount >= MIN_WAGER, BettingError::BetTooLow);
 
-        self.receive_sol_start(self.signer.to_account_info(), amount)?;
+        self.receive_sol_start(amount)?;
 
         let tot_for: u64 = match direction {
             true => amount,
@@ -144,19 +131,17 @@ impl<'info_s> StartMarket<'info_s> {
         
         let tot_against = amount - tot_for;
 
-        self.escrow.bettors = Some(Vec::from([self.signer.key()]));
         self.escrow.tot_for = tot_for;
         self.escrow.tot_against = tot_against;
+        self.escrow.n_bets = 1;
 
         self.initialiser.set_inner(
             Bettor {
-                bump: bumps.initialiser,                    // u8
-                pk: self.signer.to_account_info().key(),    // Pubkey
-                market: self.escrow.market,                 // Pubkey
-                facet: self.escrow.facet.clone(),           // Facet
-                tot_for,                                    // u64
-                tot_against,                                // u64
-                tot_underdog: 0_u64,                        // u64
+                bump: bumps.initialiser,            // u8
+                tot_for,                            // u64
+                tot_against,                        // u64
+                tot_underdog: 0_u64,                // u64
+                bets_signed: Some(signed_message),  // Option<[u8; 64]>
             }
         );
 
@@ -164,11 +149,11 @@ impl<'info_s> StartMarket<'info_s> {
         
     }
 
-    fn receive_sol_start(&self, from: AccountInfo<'info_s>, amount: u64) -> Result<()> {
+    fn receive_sol_start(&self, amount: u64) -> Result<()> {
 
         let accounts = Transfer {
-            from,
-            to: self.treasury_auth.to_account_info(),
+            from: self.signer.to_account_info(),
+            to: self.treasury.to_account_info(),
         };
 
         let cpi_ctx = CpiContext::new(self.system_program.to_account_info(), accounts);

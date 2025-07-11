@@ -8,6 +8,8 @@ use anchor_spl::{
 pub struct MintTokens<'info_m> {
     #[account(mut)]
     pub payer: Signer<'info_m>,
+    #[account(mut)]
+    pub recipient: SystemAccount<'info_m>,
     #[account(
         mut,
         seeds = [b"mint"],
@@ -19,9 +21,9 @@ pub struct MintTokens<'info_m> {
         init_if_needed,
         payer = payer,
         associated_token::mint = mint,
-        associated_token::authority = payer,
+        associated_token::authority = recipient,
     )]
-    pub recipient: Account<'info_m, TokenAccount>,
+    pub recipient_ata: Account<'info_m, TokenAccount>,
     pub associated_token_program: Program<'info_m, AssociatedToken>,
     pub system_program: Program<'info_m, System>,
     pub token_program: Program<'info_m, Token>,
@@ -43,7 +45,7 @@ impl<'info_m> MintTokens<'info_m> {
             self.token_program.to_account_info(),
             MintTo {
                 mint: self.mint.to_account_info(),
-                to: self.recipient.to_account_info(),
+                to: self.recipient_ata.to_account_info(),
                 authority: self.mint.to_account_info(),
             },
             &signer,

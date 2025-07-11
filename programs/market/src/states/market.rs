@@ -1,19 +1,20 @@
-use anchor_lang::prelude::{borsh::{BorshSerialize, BorshDeserialize}, *};
+use anchor_lang::prelude::*;
 
 #[account]
 #[derive(InitSpace)]
 pub struct Market {
-    pub bump: u8,           // Bump
-    pub token: Pubkey,      // Authensus token to which the market corresponds
+    pub bump: u8,               // Bump
+    pub token: Pubkey,          // Authensus token to which the market corresponds
     #[max_len(8)]
-    pub facets: Vec<Facet>, // Vector of Facets around which wagers can be made and votes must be cast
-    pub start_time: i64,    // Time at which the most recent wagers markets started
-    pub timeout: i64,       // Total time for which the wagers markets will operate
-    pub state: MarketState, // Current state of the market
-    pub round: u16,         // Number of this round of the market
+    pub facets: Vec<Facet>,     // Vector of Facets around which wagers can be made and votes must be cast (at most 8)
+    pub start_time: i64,        // Time at which the most recent wagers markets started
+    pub timeout: i64,           // Total time for which the wagers markets will operate
+    pub call_time: Option<i64>, // Marks the time at which all consolidations are due
+    pub state: MarketState,     // Current state of the market
+    pub round: u16,             // Number of this round of the market
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum MarketState {
     Initialised,
     Inactive,
@@ -22,13 +23,13 @@ pub enum MarketState {
     Consolidating,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace)]
 pub struct MarketParams {
     pub authensus_token: Pubkey,
     pub facet: Facet,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, InitSpace, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace, PartialEq)]
 pub enum Facet {
     Truthfulness,
     Originality,

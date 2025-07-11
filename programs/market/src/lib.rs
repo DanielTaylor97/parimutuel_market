@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY");
+declare_id!("H1N8hJ1iNg98v5G4rTJRzS84GokiZAqh3X99TaD3G5Qy");
 
 pub mod states;
 pub mod contexts;
@@ -17,8 +17,12 @@ pub use error::*;
 pub use constants::*;
 
 #[program]
-pub mod parimutuel_market {
+pub mod market {
     use super::*;
+
+    pub fn init_marketplace(ctx: Context<InitialiseMarketplace>) -> Result<()> {
+        ctx.accounts.init_marketplace()
+    }
 
     pub fn initialise_market(
         ctx: Context<InitialiseMarket>,
@@ -41,6 +45,7 @@ pub mod parimutuel_market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.start(
@@ -52,7 +57,8 @@ pub mod parimutuel_market {
             &ctx.bumps,
             &params,
             amount,
-            direction
+            direction,
+            signed_message,
         )
 
     }
@@ -62,6 +68,7 @@ pub mod parimutuel_market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.place_wager(
@@ -69,6 +76,7 @@ pub mod parimutuel_market {
             &params,
             amount,
             direction,
+            signed_message,
         )
 
     }
@@ -77,12 +85,14 @@ pub mod parimutuel_market {
         ctx: Context<Wager>,
         params: MarketParams,
         amount: u64,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.underdog_bet(
             &ctx.bumps,
             &params,
-            amount
+            amount,
+            signed_message,
         )
         
     }
@@ -92,13 +102,15 @@ pub mod parimutuel_market {
         params: MarketParams,
         amount: u64,
         direction: bool,
+        signed_message: [u8; 64],
     ) -> Result<()> {
 
         ctx.accounts.add_vote(
             &ctx.bumps,
             &params,
             amount,
-            direction
+            direction,
+            signed_message,
         )
         
     }
@@ -131,4 +143,23 @@ pub mod parimutuel_market {
         )
 
     }
+
+    pub fn query_escrow(
+        ctx: Context<QueryEscrow>,
+        params: MarketParams,
+    ) -> Result<u64> {
+        ctx.accounts.query_escrow(
+            &params,
+        )
+    }
+
+    pub fn query_poll(
+        ctx: Context<QueryPoll>,
+        params: MarketParams,
+    ) -> Result<u16> {
+        ctx.accounts.query_poll(
+            &params,
+        )
+    }
+
 }

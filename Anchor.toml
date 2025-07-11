@@ -5,9 +5,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-market = "H4jYJQJhPSy7ANZwDZDkvE4Q9x5oQDz1tKaB2GRjrDpY"
-treasury = "2q146K97ZLyEdhD6SyY1G3EbbvLE6ttPjV5rG9jsQDDL"
-voting_tokens = "8MrQHajcffRco93T4kR5FiLnrCYA7nj1yYXoauHRdg5d"
+market = "H1N8hJ1iNg98v5G4rTJRzS84GokiZAqh3X99TaD3G5Qy"
+voting_tokens = "GtzsX9CtWZJubVMpMT3N7VyGPzBKvPmawygZK1cDHRDc"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,4 +16,13 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000"
+test-market = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/market/*.ts"
+test-voting-tokens = "yarn run ts-mocha -p ./tsconfig.json -t 1000000000 tests/voting_tokens/*.ts"
+
+[test]
+startup_wait = 20000
+
+[[test.genesis]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+program = ".anchor/metaplex.so"
