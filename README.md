@@ -1,4 +1,4 @@
-# Authensus
+# Parimutuel Market
 
 This is a pair of Anchor Solana Programs, which can be integrated into, for example, a Next.js app. They contain:
 
